@@ -1,0 +1,581 @@
+part of excel_it;
+
+const String _relationships =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+const String _relationshipsStyles =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
+const String _relationshipsWorksheet =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet";
+const String _relationshipsSharedStrings =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships/sharedStrings";
+
+/// Convert a character based column
+int lettersToNumeric(String letters) {
+  var sum = 0;
+  var mul = 1;
+  var n;
+  for (var index = letters.length - 1; index >= 0; index--) {
+    var c = letters[index].codeUnitAt(0);
+    n = 1;
+    if (65 <= c && c <= 90) {
+      n += c - 65;
+    } else if (97 <= c && c <= 122) {
+      n += c - 97;
+    }
+    sum += n * mul;
+    mul = mul * 26;
+  }
+  return sum;
+}
+
+/// Convert a number to character based column
+String numericToLetters(int number) {
+  var letters = '';
+
+  while (number != 0) {
+    // Set remainder from 1..26
+    var remainder = number % 26;
+
+    if (remainder == 0) {
+      remainder = 26;
+    }
+
+    // Convert the remainder to a character.
+    var letter = String.fromCharCode(65 + remainder - 1);
+
+    // Accumulate the column letters, right to left.
+    letters = letter + letters;
+
+    // Get the next order of magnitude.
+    number = (number - 1) ~/ 26;
+  }
+  return letters;
+}
+
+int _letterOnly(int rune) {
+  if (65 <= rune && rune <= 90) {
+    return rune;
+  } else if (97 <= rune && rune <= 122) {
+    return rune - 32;
+  }
+  return 0;
+}
+
+// Not used
+//int _intOnly(int rune) {
+//  if (rune >= 48 && rune < 58) {
+//    return rune;
+//  }
+//  return 0;
+//}
+
+String _twoDigits(int n) {
+  if (n >= 10) {
+    return "${n}";
+  }
+  return "0${n}";
+}
+
+/// Returns the coordinates from a cell name.
+/// "A1" returns [1, 1] and the "B3" return [2, 3].
+List cellCoordsFromCellId(String cellId) {
+  var letters = cellId.runes.map(_letterOnly);
+  var lettersPart =
+      utf8.decode(letters.where((rune) => rune > 0).toList(growable: false));
+  var numericsPart = cellId.substring(lettersPart.length);
+  var x = lettersToNumeric(lettersPart);
+  var y = int.parse(numericsPart);
+  return [x, y];
+}
+
+/// Read and parse XSLX spreadsheet
+class XlsxDecoder extends ExcelIt {
+  String get mediaType =>
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
+  String get extension => ".xlsx";
+
+  List<String> _sharedStrings = List<String>();
+  List<int> _numFormats = List<int>();
+  String _stylesTarget;
+  String _sharedStringsTarget;
+  Map<String, String> _worksheetTargets = Map<String, String>();
+
+  XlsxDecoder(Archive archive, {bool update = false}) {
+    this._archive = archive;
+    this._update = update;
+    if (_update == true) {
+      _archiveFiles = <String, ArchiveFile>{};
+      _sheets = <String, XmlNode>{};
+      _xmlFiles = <String, XmlDocument>{};
+    }
+    _tables = Map<String, SpreadsheetTable>();
+    _parseRelations();
+    _parseStyles();
+    _parseSharedStrings();
+    _parseContent();
+  }
+
+  String dumpXmlContent([String sheet]) {
+    if (sheet == null) {
+      var buffer = StringBuffer();
+      _sheets.forEach((name, document) {
+        buffer.writeln(name);
+        buffer.writeln(document.toXmlString(pretty: true));
+      });
+      return buffer.toString();
+    } else {
+      return _sheets[sheet].toXmlString(pretty: true);
+    }
+  }
+
+  void insertColumn(String sheet, int columnIndex) {
+    super.insertColumn(sheet, columnIndex);
+
+    for (var row in _findRows(_sheets[sheet])) {
+      XmlElement cell;
+      var cells = _findCells(row);
+
+      var currentIndex = 0; // cells could be empty
+      for (var currentCell in cells) {
+        currentIndex = _getCellNumber(currentCell) - 1;
+        if (currentIndex >= columnIndex) {
+          cell = currentCell;
+          break;
+        }
+      }
+
+      if (cell != null) {
+        cells
+            .skipWhile((c) => c != cell)
+            .forEach((c) => _setCellColNumber(c, _getCellNumber(c) + 1));
+      }
+      // Nothing to do if cell == null
+    }
+  }
+
+  void removeColumn(String sheet, int columnIndex) {
+    super.removeColumn(sheet, columnIndex);
+
+    for (var row in _findRows(_sheets[sheet])) {
+      XmlElement cell;
+      var cells = _findCells(row);
+
+      var currentIndex = 0; // cells could be empty
+      for (var currentCell in cells) {
+        currentIndex = _getCellNumber(currentCell) - 1;
+        if (currentIndex >= columnIndex) {
+          cell = currentCell;
+          break;
+        }
+      }
+
+      if (cell != null) {
+        cells
+            .skipWhile((c) => c != cell)
+            .forEach((c) => _setCellColNumber(c, _getCellNumber(c) - 1));
+        cell.parent.children.remove(cell);
+      }
+    }
+  }
+
+  void insertRow(String sheet, int rowIndex) {
+    super.insertRow(sheet, rowIndex);
+
+    var parent = _sheets[sheet];
+    print("parent:\n");
+    print(parent.following.toString());
+    if (rowIndex < _tables[sheet]._maxRows - 1) {
+      var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
+      _insertRow(parent, foundRow, rowIndex);
+      parent.children.skipWhile((row) => row != foundRow).forEach((row) {
+        var rIndex = _getRowNumber(row) + 1;
+        _setRowNumber(row, rIndex);
+        _findCells(row).forEach((cell) {
+          _setCellRowNumber(cell, rIndex);
+        });
+      });
+    } else {
+      _insertRow(parent, null, rowIndex);
+    }
+  }
+
+  void removeRow(String sheet, int rowIndex) {
+    super.removeRow(sheet, rowIndex);
+
+    var parent = _sheets[sheet];
+    var foundRow = _findRowByIndex(parent, rowIndex);
+    parent.children.skipWhile((row) => row != foundRow).forEach((row) {
+      var rIndex = _getRowNumber(row) - 1;
+      _setRowNumber(row, rIndex);
+      _findCells(row).forEach((cell) {
+        _setCellRowNumber(cell, rIndex);
+      });
+    });
+    parent.children.remove(foundRow);
+  }
+
+  void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value) {
+    super.updateCell(sheet, columnIndex, rowIndex, value);
+
+    var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
+    _updateCell(foundRow, columnIndex, rowIndex, value);
+  }
+
+  _parseRelations() {
+    var relations = _archive.findFile('xl/_rels/workbook.xml.rels');
+    if (relations != null) {
+      relations.decompress();
+      var document = parse(utf8.decode(relations.content));
+      document.findAllElements('Relationship').forEach((node) {
+        switch (node.getAttribute('Type')) {
+          case _relationshipsStyles:
+            _stylesTarget = node.getAttribute('Target');
+            break;
+          case _relationshipsWorksheet:
+            _worksheetTargets[node.getAttribute('Id')] =
+                node.getAttribute('Target');
+            break;
+          case _relationshipsSharedStrings:
+            _sharedStringsTarget = node.getAttribute('Target');
+            break;
+        }
+      });
+    }
+  }
+
+  _parseStyles() {
+    var styles = _archive.findFile('xl/$_stylesTarget');
+    if (styles != null) {
+      styles.decompress();
+      var document = parse(utf8.decode(styles.content));
+      document
+          .findAllElements('cellXfs')
+          .first
+          .findElements('xf')
+          .forEach((node) {
+        var numFmtId = node.getAttribute('numFmtId');
+        if (numFmtId != null) {
+          _numFormats.add(int.parse(numFmtId));
+        } else {
+          _numFormats.add(0);
+        }
+      });
+    }
+  }
+
+  _parseSharedStrings() {
+    var sharedStrings = _archive.findFile('xl/$_sharedStringsTarget');
+    if (sharedStrings != null) {
+      sharedStrings.decompress();
+      var document = parse(utf8.decode(sharedStrings.content));
+      document.findAllElements('si').forEach((node) {
+        _parseSharedString(node);
+      });
+    }
+  }
+
+  _parseSharedString(XmlElement node) {
+    var list = List();
+    node.findAllElements('t').forEach((child) {
+      list.add(_parseValue(child));
+    });
+    _sharedStrings.add(list.join(''));
+  }
+
+  _parseContent() {
+    var workbook = _archive.findFile('xl/workbook.xml');
+    workbook.decompress();
+    var document = parse(utf8.decode(workbook.content));
+    document.findAllElements('sheet').forEach((node) {
+      _parseTable(node);
+    });
+  }
+
+  _parseTable(XmlElement node) {
+    var name = node.getAttribute('name');
+    var target =
+        _worksheetTargets[node.getAttribute('id', namespace: _relationships)];
+    tables[name] = SpreadsheetTable(name);
+    var table = tables[name];
+
+    var file = _archive.findFile("xl/$target");
+    file.decompress();
+
+    var content = parse(utf8.decode(file.content));
+    var worksheet = content.findElements('worksheet').first;
+    print("worksheet:\n");
+    XmlElement t = XmlElement(XmlName('mergeCells'),
+        <XmlAttribute>[XmlAttribute(XmlName('count'), '3')]);
+
+    t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
+      XmlAttribute(XmlName('ref'), 'D1:D3'),
+    ]));
+    t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
+      XmlAttribute(XmlName('ref'), 'B2:B3'),
+    ]));
+    t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
+      XmlAttribute(XmlName('ref'), 'A2:A3'),
+    ]));
+
+    worksheet.children.add(t);
+
+    print(worksheet.children.toList().toString());
+    var sheet = worksheet.findElements('sheetData').first;
+
+    _findRows(sheet).forEach((child) {
+      _parseRow(child, table);
+    });
+    if (_update == true) {
+      _sheets[name] = sheet;
+      _xmlFiles["xl/$target"] = content;
+    }
+
+    _normalizeTable(table);
+  }
+
+  _parseRow(XmlElement node, SpreadsheetTable table) {
+    var row = List();
+
+    _findCells(node).forEach((child) {
+      _parseCell(child, table, row);
+    });
+
+    var rowIndex = _getRowNumber(node) - 1;
+    if (_isNotEmptyRow(row) && rowIndex > table._rows.length) {
+      var repeat = rowIndex - table._rows.length;
+      for (var index = 0; index < repeat; index++) {
+        table._rows.add(List());
+      }
+    }
+
+    if (_isNotEmptyRow(row)) {
+      table._rows.add(row);
+    } else {
+      table._rows.add(List());
+    }
+
+    _countFilledRow(table, row);
+  }
+
+  _parseCell(XmlElement node, SpreadsheetTable table, List row) {
+    var colIndex = _getCellNumber(node) - 1;
+    if (colIndex > row.length) {
+      var repeat = colIndex - row.length;
+      for (var index = 0; index < repeat; index++) {
+        row.add(null);
+      }
+    }
+
+    if (node.children.isEmpty) {
+      return;
+    }
+
+    var value;
+    var type = node.getAttribute('t');
+
+    switch (type) {
+      // sharedString
+      case 's':
+        value = _sharedStrings[
+            int.parse(_parseValue(node.findElements('v').first))];
+        break;
+      // boolean
+      case 'b':
+        value = _parseValue(node.findElements('v').first) == '1';
+        break;
+      // error
+      case 'e':
+      // formula
+      case 'str':
+        // <c r="C6" s="1" vm="15" t="str">
+        //  <f>CUBEVALUE("xlextdat9 Adventure Works",C$5,$A6)</f>
+        //  <v>2838512.355</v>
+        // </c>
+        value = _parseValue(node.findElements('v').first);
+        break;
+      // inline string
+      case 'inlineStr':
+        // <c r="B2" t="inlineStr">
+        // <is><t>Hello world</t></is>
+        // </c>
+        value = _parseValue(node.findAllElements('t').first);
+        break;
+      // number
+      case 'n':
+      default:
+        var s = node.getAttribute('s');
+        var valueNode = node.findElements('v');
+        var content = valueNode.first;
+        if (s != null) {
+          var fmtId = _numFormats[int.parse(s)];
+          // date
+          if (((fmtId >= 14) && (fmtId <= 17)) || (fmtId == 22)) {
+            var delta = num.parse(_parseValue(content)) * 24 * 3600 * 1000;
+            var date = DateTime(1899, 12, 30);
+            value = date
+                .add(Duration(milliseconds: delta.toInt()))
+                .toIso8601String();
+            // time
+          } else if (((fmtId >= 18) && (fmtId <= 21)) ||
+              ((fmtId >= 45) && (fmtId <= 47))) {
+            var delta = num.parse(_parseValue(content)) * 24 * 3600 * 1000;
+            var date = DateTime(0);
+            date = date.add(Duration(milliseconds: delta.toInt()));
+            value =
+                "${_twoDigits(date.hour)}:${_twoDigits(date.minute)}:${_twoDigits(date.second)}";
+            // number
+          } else {
+            value = num.parse(_parseValue(content));
+          }
+        } else {
+          value = num.parse(_parseValue(content));
+        }
+    }
+    row.add(value);
+
+    _countFilledColumn(table, row, value);
+  }
+
+  _parseValue(XmlElement node) {
+    var buffer = StringBuffer();
+
+    node.children.forEach((child) {
+      if (child is XmlText) {
+        buffer.write(_normalizeNewLine(child.text));
+      }
+    });
+
+    return buffer.toString();
+  }
+
+  static Iterable<XmlElement> _findRows(XmlElement table) =>
+      table.findElements('row');
+
+  static Iterable<XmlElement> _findCells(XmlElement row) =>
+      row.findElements('c');
+
+  static int _getRowNumber(XmlElement row) => int.parse(row.getAttribute('r'));
+  static void _setRowNumber(XmlElement row, int index) =>
+      row.getAttributeNode('r').value = index.toString();
+
+  static int _getCellNumber(XmlElement cell) {
+    var coords = cellCoordsFromCellId(cell.getAttribute('r'));
+    return coords[0];
+  }
+
+  static void _setCellColNumber(XmlElement cell, int colIndex) {
+    var attr = cell.getAttributeNode('r');
+    var coords = cellCoordsFromCellId(attr.value);
+    attr.value = '${numericToLetters(colIndex)}${coords[1]}';
+  }
+
+  static void _setCellRowNumber(XmlElement cell, int rowIndex) {
+    var attr = cell.getAttributeNode('r');
+    var coords = cellCoordsFromCellId(attr.value);
+    attr.value = '${numericToLetters(coords[0])}${rowIndex}';
+  }
+
+  static XmlElement _findRowByIndex(XmlElement table, int rowIndex) {
+    XmlElement row;
+    var rows = _findRows(table);
+
+    var currentIndex = 0;
+    for (var currentRow in rows) {
+      currentIndex = _getRowNumber(currentRow) - 1;
+      if (currentIndex >= rowIndex) {
+        row = currentRow;
+        break;
+      }
+    }
+
+    // Create row if required
+    if (row == null || currentIndex != rowIndex) {
+      row = _insertRow(table, row, rowIndex);
+    }
+
+    return row;
+  }
+
+  static XmlElement _updateCell(
+      XmlElement node, int columnIndex, int rowIndex, dynamic value) {
+    XmlElement cell;
+    var cells = _findCells(node);
+
+    var currentIndex = 0; // cells could be empty
+    for (var currentCell in cells) {
+      currentIndex = _getCellNumber(currentCell) - 1;
+      if (currentIndex >= columnIndex) {
+        cell = currentCell;
+        break;
+      }
+    }
+
+    if (cell == null || currentIndex != columnIndex) {
+      cell = _insertCell(node, cell, columnIndex, rowIndex, value);
+    } else {
+      cell = _replaceCell(node, cell, columnIndex, rowIndex, value);
+    }
+
+    return cell;
+  }
+
+  static XmlElement _createRow(int rowIndex) {
+    var attributes = <XmlAttribute>[
+      XmlAttribute(XmlName('r'), (rowIndex + 1).toString()),
+    ];
+    return XmlElement(XmlName('row'), attributes, []);
+  }
+
+  static XmlElement _insertRow(
+      XmlElement table, XmlElement lastRow, int rowIndex) {
+    var row = _createRow(rowIndex);
+    if (lastRow == null) {
+      table.children.add(row);
+    } else {
+      var index = table.children.indexOf(lastRow);
+      table.children.insert(index, row);
+    }
+    print("table-children:\n");
+    print(table.firstChild.toString());
+    return row;
+  }
+
+  static XmlElement _insertCell(XmlElement row, XmlElement lastCell,
+      int columnIndex, int rowIndex, dynamic value) {
+    var cell = _createCell(columnIndex, rowIndex, value);
+    if (lastCell == null) {
+      row.children.add(cell);
+    } else {
+      var index = row.children.indexOf(lastCell);
+      row.children.insert(index, cell);
+    }
+    return cell;
+  }
+
+  static XmlElement _replaceCell(XmlElement row, XmlElement lastCell,
+      int columnIndex, int rowIndex, dynamic value) {
+    var index = lastCell == null ? 0 : row.children.indexOf(lastCell);
+    var cell = _createCell(columnIndex, rowIndex, value);
+    row.children
+      ..removeAt(index)
+      ..insert(index, cell);
+    return cell;
+  }
+
+  // TODO Manage value's type
+  static XmlElement _createCell(int columnIndex, int rowIndex, dynamic value) {
+    var attributes = <XmlAttribute>[
+      XmlAttribute(
+          XmlName('r'), '${numericToLetters(columnIndex + 1)}${rowIndex + 1}'),
+      XmlAttribute(XmlName('t'), 'inlineStr'),
+    ];
+    var children = value == null
+        ? <XmlElement>[]
+        : <XmlElement>[
+            XmlElement(XmlName('is'), [], [
+              XmlElement(XmlName('t'), [], [XmlText(value.toString())])
+            ]),
+          ];
+    return XmlElement(XmlName('c'), attributes, children);
+  }
+}
