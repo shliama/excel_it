@@ -11,7 +11,7 @@ String _normalizeNewLine(String text) {
   return text.replaceAll("\r\n", "\n");
 }
 
-ExcelIt _newSpreadsheetDecoder(Archive archive, bool update) {
+ExcelIt _newExcelIt(Archive archive, bool update) {
   // Lookup at file format
   var format;
 
@@ -68,13 +68,40 @@ abstract class ExcelIt {
   factory ExcelIt.decodeBytes(List<int> data,
       {bool update: false, bool verify: false}) {
     var archive = ZipDecoder().decodeBytes(data, verify: verify);
-    return _newSpreadsheetDecoder(archive, update);
+    return _newExcelIt(archive, update);
   }
 
   factory ExcelIt.decodeBuffer(InputStream input,
       {bool update: false, bool verify: false}) {
     var archive = ZipDecoder().decodeBuffer(input, verify: verify);
-    return _newSpreadsheetDecoder(archive, update);
+    return _newExcelIt(archive, update);
+  }
+
+  void _createSheet(String newSheet) {
+    /* _xmlFiles.entries.forEach((f) {
+      print("Heya0-9\n\n\n\n\n\n08765456768"+f.toString());
+      print(f.toString() + ":" + _xmlFiles[f.toString()].toString());
+    });
+    /* _xmlFiles[_xmlFiles.keys.first]
+        .findAllElements('sheetData')
+        .first
+        .children
+        .clear(); */
+    _xmlFiles[_xmlFiles.keys.first]
+        .findAllElements('sheetData')
+        .first
+        .children
+        .clear();
+    _xmlFiles[_xmlFiles.keys.first]
+        .findAllElements('mergeCells')
+        .first
+        .children
+        .clear();
+    print("_createSheet:\n\n\n\n");
+    print("entries Keys:\n\n\n\n" + _xmlFiles.keys.toList().toString());
+    print("entries Values:\n\n\n\n" +
+        _xmlFiles[_xmlFiles.keys.first].toXmlString().toString());
+    print("_createSheet End"); */
   }
 
   /// Dump XML content (for debug purpose)
@@ -85,7 +112,18 @@ abstract class ExcelIt {
       throw ArgumentError("'update' should be set to 'true' on constructor");
     }
     if (_sheets.containsKey(sheet) == false) {
-      throw ArgumentError("'$sheet' not found");
+      _createSheet(sheet);
+      _sheets[sheet] = _sheets[_sheets.keys.first];
+      //_sheets[sheet].children.clear();
+      _tables[sheet] =
+          new SpreadsheetTable(sheet); //_tables[_tables.keys.first];
+
+      // _tables[sheet].rows[0][0] = "hurry";
+      //_normalizeTable(_tables[sheet]);
+
+      print("_sheets:\n${sheet}:\n" + _sheets[sheet].root.toString());
+      print("_tables:\n${sheet}:\n" + _tables[sheet].rows.toString());
+      //throw ArgumentError("'$sheet' not found");
     }
   }
 
@@ -159,6 +197,8 @@ abstract class ExcelIt {
 
   /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value) {
+    //print("List tables:" + _tables.keys.toList().toString());
+    //print("Rows__ tables:" + _tables[sheet].rows.toString());
     _checkSheetArguments(sheet);
 
     if (columnIndex >= _tables[sheet]._maxCols)

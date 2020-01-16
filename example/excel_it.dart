@@ -17,12 +17,14 @@ main(List<String> args) {
 
   var sheet = decoder.tables.keys.first;
   decoder
-    ..updateCell(sheet, 0, 0, "Ashumendra")
-    ..updateCell(sheet, 1, 0, null)
-    ..updateCell(sheet, 2, 0, "C")
-    ..updateCell(sheet, 1, 1, 42.3)
-    
-    ..updateCell(sheet, 4, 3, "A14");
+    ..updateCell(sheet, 0, 0, "A1")
+    ..updateCell(sheet, 2, 0, "C1")
+    ..updateCell(sheet, 0, 1, "A2")
+    ..updateCell(sheet, 4, 4, "A5");
+
+  decoder
+    ..updateCell('Sheet2', 0, 0, "abc")
+    ..updateCell('Sheet2', 2, 0, "df");
 
   File(join("/Users/kawal/Desktop/output/${basename(file)}"))
     ..createSync(recursive: true)

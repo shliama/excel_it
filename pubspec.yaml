@@ -2,8 +2,8 @@ name: excel_it
 description: A lightweight library for parsing and updating spreadsheet documents
 version: 1.1.0
 authors:
-- Stéphane Este-Gracias <sestegra@gmail.com>
-homepage: https://github.com/sestegra/spreadsheet
+- Ashumendra Pratap Singh <ashumendrapratap77@gmail.com>
+- Kawaljeet Singh <kawal7415@gmail.com>
 
 environment:
   sdk: '>=2.0.0-dev.67.0 <3.0.0'

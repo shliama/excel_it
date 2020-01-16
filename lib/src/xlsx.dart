@@ -182,8 +182,8 @@ class XlsxDecoder extends ExcelIt {
     super.insertRow(sheet, rowIndex);
 
     var parent = _sheets[sheet];
-    print("parent:\n");
-    print(parent.following.toString());
+    //print("parent:\n");
+    //print(parent.following.toString());
     if (rowIndex < _tables[sheet]._maxRows - 1) {
       var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
       _insertRow(parent, foundRow, rowIndex);
@@ -303,18 +303,18 @@ class XlsxDecoder extends ExcelIt {
 
     var content = parse(utf8.decode(file.content));
     var worksheet = content.findElements('worksheet').first;
-    print("worksheet:\n");
+    //print("worksheet:\n");
     XmlElement t = XmlElement(XmlName('mergeCells'),
         <XmlAttribute>[XmlAttribute(XmlName('count'), '3')]);
 
     t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-      XmlAttribute(XmlName('ref'), 'D1:D3'),
+      XmlAttribute(XmlName('ref'), 'D1:D4'),
     ]));
     t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-      XmlAttribute(XmlName('ref'), 'B2:B3'),
+      XmlAttribute(XmlName('ref'), 'A5:B5'),
     ]));
     t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-      XmlAttribute(XmlName('ref'), 'A2:A3'),
+      XmlAttribute(XmlName('ref'), 'A2:B4'),
     ]));
 
     worksheet.children.add(t);
@@ -535,8 +535,8 @@ class XlsxDecoder extends ExcelIt {
       var index = table.children.indexOf(lastRow);
       table.children.insert(index, row);
     }
-    print("table-children:\n");
-    print(table.firstChild.toString());
+    //print("table-children:\n");
+    //print(table.firstChild.toString());
     return row;
   }
 

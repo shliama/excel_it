@@ -12,6 +12,5 @@ part 'common.dart';
 void main() {
   testUnsupported();
   testXlsx();
-  testUpdateOds();
   testUpdateXlsx();
 }
