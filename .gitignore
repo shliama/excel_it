@@ -1,0 +1,33 @@
+# IDE files
+.idea/
+.vscode/
+
+# Files and directories created by pub
+.buildlog
+.packages
+.project
+.pub/
+.dart_tool
+build/
+packages
+pubspec.lock
+
+# Files created by dart2js
+*.dart.js
+*.part.js
+*.js.deps
+*.js.map
+*.info.json
+
+# Directory created by dartdoc
+doc/api/
+
+# Unzipped directories (for debug)
+*_ods/
+*_xlsx/
+
+# LibreOffice locks
+.~lock.*#
+
+test/out/
+others/
