@@ -1,7 +1,7 @@
-# ExcelIt
+# Excelit
 
 
-ExcelIt is a library for decoding and updating spreadsheets for XLSX files.
+Excelit is a library for decoding and updating spreadsheets for XLSX files.
 
 ## Usage
 
