@@ -1,6 +1,7 @@
 # IDE files
 .idea/
 .vscode/
+.DS_Store
 
 # Files and directories created by pub
 .buildlog
