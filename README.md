@@ -1,7 +1,7 @@
-# Spreadsheet Decoder
+# ExcelIt
 
 
-Spreadsheet Decoder is a library for decoding and updating spreadsheets for ODS and XLSX files.
+ExcelIt is a library for decoding and updating spreadsheets for XLSX files.
 
 ## Usage
 
@@ -42,12 +42,9 @@ Spreadsheet Decoder is a library for decoding and updating spreadsheets for ODS 
 ## Features not yet supported
 This implementation doesn't support following features:
 - annotations
-- spanned rows
-- spanned columns
 - hidden rows (visible in resulting tables)
 - hidden columns (visible in resulting tables)
 
 For XLSX format, this implementation only supports native Excel format for date, time and boolean type conversion.
 In other words, custom format for date, time, boolean aren't supported and then file exported from LibreOffice as well.
 
-# execl_it
