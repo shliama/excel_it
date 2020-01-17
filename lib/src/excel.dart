@@ -1,10 +1,14 @@
 part of excel_it;
 
+const String _relationships =
+    "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+
 const _spreasheetXlsx = 'xlsx';
-final Map<String, String> _spreasheetExtensionMap = <String, String>{
+final intRegex = RegExp(r'\s+(\d+)\s+', multiLine: true);
+/* final Map<String, String> _spreasheetExtensionMap = <String, String>{
   _spreasheetXlsx:
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-};
+}; */
 
 // Normalize new line
 String _normalizeNewLine(String text) {
@@ -17,12 +21,7 @@ ExcelIt _newExcelIt(Archive archive, bool update) {
 
   // Try OpenDocument format
   var mimetype = archive.findFile('mimetype');
-  if (mimetype != null) {
-    mimetype.decompress();
-    var content = utf8.decode(mimetype.content);
-
-    // Try OpenXml Office format
-  } else {
+  if (mimetype == null) {
     var xl = archive.findFile('xl/workbook.xml');
     format = xl != null ? _spreasheetXlsx : null;
   }
@@ -31,19 +30,17 @@ ExcelIt _newExcelIt(Archive archive, bool update) {
     case _spreasheetXlsx:
       return XlsxDecoder(archive, update: update);
     default:
-      throw UnsupportedError("Spreadsheet format unsupported");
+      throw UnsupportedError("Excel format unsupported");
   }
 }
 
-// Issue on archive
-// https://github.com/brendan-duncan/archive/pull/43
 const List<String> _noCompression = const <String>[
   'mimetype',
   'Thumbnails/thumbnail.png',
 ];
 
 /**
- * Decode a spreadsheet file.
+ * Decode a excel file.
  */
 abstract class ExcelIt {
   bool _update;
@@ -51,6 +48,9 @@ abstract class ExcelIt {
   Map<String, XmlNode> _sheets;
   Map<String, XmlDocument> _xmlFiles;
   Map<String, ArchiveFile> _archiveFiles;
+  Map<String, String> _worksheetTargets;
+  List<String> _sharedStrings, _rId;
+  List<int> _numFormats;
 
   Map<String, SpreadsheetTable> _tables;
 
@@ -77,54 +77,97 @@ abstract class ExcelIt {
     return _newExcelIt(archive, update);
   }
 
+  /**
+   * Uses the [newSheet] as the name of the sheet and also adds it to the [ xl/worksheets/ ] directory
+   * Add the sheet details in the workbook.xml. as well as in the workbook.xml.rels
+   * Then add the sheet physically into the [_xmlFiles] so as to get it into the archieve.
+   * Also add it into the [_sheets] and [_tables] map so as to allow the editing.
+   */
   void _createSheet(String newSheet) {
-    /* _xmlFiles.entries.forEach((f) {
-      print("Heya0-9\n\n\n\n\n\n08765456768"+f.toString());
-      print(f.toString() + ":" + _xmlFiles[f.toString()].toString());
-    });
-    /* _xmlFiles[_xmlFiles.keys.first]
-        .findAllElements('sheetData')
+    XmlElement lastSheet = _xmlFiles["xl/workbook.xml"]
+        .findAllElements('sheets')
         .first
         .children
-        .clear(); */
-    _xmlFiles[_xmlFiles.keys.first]
-        .findAllElements('sheetData')
+        .last;
+    int sheetNumber = int.parse(lastSheet.getAttribute('sheetId'));
+    _rId.sort((a, b) =>
+        int.parse(a.substring(3)).compareTo(int.parse(b.substring(3))));
+    List<String> got = new List<String>.from(_rId.last.split(''));
+    got.removeWhere((item) => !'0123456789'.split('').contains(item));
+    int ridNumber = int.parse(got.join().toString()) + 1;
+
+    _xmlFiles["xl/_rels/workbook.xml.rels"]
+        .findAllElements('Relationships')
         .first
         .children
-        .clear();
-    _xmlFiles[_xmlFiles.keys.first]
-        .findAllElements('mergeCells')
+        .add(XmlElement(XmlName('Relationship'), <XmlAttribute>[
+          XmlAttribute(XmlName('Id'), 'rId${ridNumber}'),
+          XmlAttribute(XmlName('Type'), "${_relationships}/worksheet"),
+          XmlAttribute(
+              XmlName('Target'), 'worksheets/sheet${sheetNumber + 1}.xml'),
+        ]));
+
+    _xmlFiles["xl/workbook.xml"]
+        .findAllElements('sheets')
         .first
         .children
-        .clear();
-    print("_createSheet:\n\n\n\n");
-    print("entries Keys:\n\n\n\n" + _xmlFiles.keys.toList().toString());
-    print("entries Values:\n\n\n\n" +
-        _xmlFiles[_xmlFiles.keys.first].toXmlString().toString());
-    print("_createSheet End"); */
+        .add(XmlElement(
+          XmlName('sheet'),
+          <XmlAttribute>[
+            XmlAttribute(XmlName('state'), 'visible'),
+            XmlAttribute(XmlName('name'), newSheet),
+            XmlAttribute(XmlName('sheetId'), '${sheetNumber + 1}'),
+            XmlAttribute(XmlName('r:id'), 'rId${ridNumber}')
+          ],
+        ));
+
+    _worksheetTargets['rId${ridNumber}'] =
+        "worksheets/sheet${sheetNumber + 1}.xml";
+
+    _xmlFiles["xl/worksheets/sheet${sheetNumber + 1}.xml"] =
+        _xmlFiles["xl/worksheets/sheet${sheetNumber}.xml"];
+
+    _xmlFiles["xl/worksheets/sheet${sheetNumber + 1}.xml"]
+        .findElements('worksheet')
+        .first
+        .children
+      ..clear()
+      ..addAll(_getNodeValue());
+
+    var content = utf8.encode(
+        _xmlFiles["xl/worksheets/sheet${sheetNumber + 1}.xml"].toString());
+
+    _archive.addFile(ArchiveFile(
+        'xl/worksheets/sheet${sheetNumber + 1}.xml', content.length, content));
+
+    var file = _archive.findFile("[Content_Types].xml");
+    file.decompress();
+
+    _xmlFiles["[Content_Types].xml"] = parse(utf8.decode(file.content));
+
+    _xmlFiles["[Content_Types].xml"]
+        .findAllElements('Types')
+        .first
+        .children
+        .add(XmlElement(
+          XmlName('Override'),
+          <XmlAttribute>[
+            XmlAttribute(XmlName('ContentType'),
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml'),
+            XmlAttribute(XmlName('PartName'),
+                '/xl/worksheets/sheet${sheetNumber + 1}.xml'),
+          ],
+        ));
+    _parseTable(_xmlFiles["xl/workbook.xml"].findAllElements('sheet').last);
   }
 
   /// Dump XML content (for debug purpose)
   String dumpXmlContent([String sheet]);
 
   void _checkSheetArguments(String sheet) {
-    if (_update != true) {
+    if (_update != true)
       throw ArgumentError("'update' should be set to 'true' on constructor");
-    }
-    if (_sheets.containsKey(sheet) == false) {
-      _createSheet(sheet);
-      _sheets[sheet] = _sheets[_sheets.keys.first];
-      //_sheets[sheet].children.clear();
-      _tables[sheet] =
-          new SpreadsheetTable(sheet); //_tables[_tables.keys.first];
-
-      // _tables[sheet].rows[0][0] = "hurry";
-      //_normalizeTable(_tables[sheet]);
-
-      print("_sheets:\n${sheet}:\n" + _sheets[sheet].root.toString());
-      print("_tables:\n${sheet}:\n" + _tables[sheet].rows.toString());
-      //throw ArgumentError("'$sheet' not found");
-    }
+    if (_sheets.containsKey(sheet) == false) _createSheet(sheet);
   }
 
   /// Insert column in [sheet] at position [columnIndex]
@@ -195,10 +238,148 @@ abstract class ExcelIt {
     table._maxRows--;
   }
 
+  _parseTable(XmlElement node) {
+    var name = node.getAttribute('name');
+    var target = _worksheetTargets[node.getAttribute('r:id')];
+
+    tables[name] = SpreadsheetTable(name);
+    var table = tables[name];
+
+    var file = _archive.findFile("xl/$target");
+    file.decompress();
+
+    var content = parse(utf8.decode(file.content));
+    var worksheet = content.findElements('worksheet').first;
+    var sheet = worksheet.findElements('sheetData').first;
+
+    _findRows(sheet).forEach((child) {
+      _parseRow(child, table);
+    });
+    if (_update == true) {
+      _sheets[name] = sheet;
+      _xmlFiles["xl/$target"] = content;
+    }
+
+    _normalizeTable(table);
+  }
+
+  _parseRow(XmlElement node, SpreadsheetTable table) {
+    var row = List();
+
+    _findCells(node).forEach((child) {
+      _parseCell(child, table, row);
+    });
+
+    var rowIndex = _getRowNumber(node) - 1;
+    if (_isNotEmptyRow(row) && rowIndex > table._rows.length) {
+      var repeat = rowIndex - table._rows.length;
+      for (var index = 0; index < repeat; index++) {
+        table._rows.add(List());
+      }
+    }
+
+    if (_isNotEmptyRow(row)) {
+      table._rows.add(row);
+    } else {
+      table._rows.add(List());
+    }
+
+    _countFilledRow(table, row);
+  }
+
+  _parseCell(XmlElement node, SpreadsheetTable table, List row) {
+    var colIndex = _getCellNumber(node) - 1;
+    if (colIndex > row.length) {
+      var repeat = colIndex - row.length;
+      for (var index = 0; index < repeat; index++) {
+        row.add(null);
+      }
+    }
+
+    if (node.children.isEmpty) {
+      return;
+    }
+
+    var value;
+    var type = node.getAttribute('t');
+
+    switch (type) {
+      // sharedString
+      case 's':
+        value = _sharedStrings[
+            int.parse(_parseValue(node.findElements('v').first))];
+        break;
+      // boolean
+      case 'b':
+        value = _parseValue(node.findElements('v').first) == '1';
+        break;
+      // error
+      case 'e':
+      // formula
+      case 'str':
+        // <c r="C6" s="1" vm="15" t="str">
+        //  <f>CUBEVALUE("xlextdat9 Adventure Works",C$5,$A6)</f>
+        //  <v>2838512.355</v>
+        // </c>
+        value = _parseValue(node.findElements('v').first);
+        break;
+      // inline string
+      case 'inlineStr':
+        // <c r="B2" t="inlineStr">
+        // <is><t>Hello world</t></is>
+        // </c>
+        value = _parseValue(node.findAllElements('t').first);
+        break;
+      // number
+      case 'n':
+      default:
+        var s = node.getAttribute('s');
+        var valueNode = node.findElements('v');
+        var content = valueNode.first;
+        if (s != null) {
+          var fmtId = _numFormats[int.parse(s)];
+          // date
+          if (((fmtId >= 14) && (fmtId <= 17)) || (fmtId == 22)) {
+            var delta = num.parse(_parseValue(content)) * 24 * 3600 * 1000;
+            var date = DateTime(1899, 12, 30);
+            value = date
+                .add(Duration(milliseconds: delta.toInt()))
+                .toIso8601String();
+            // time
+          } else if (((fmtId >= 18) && (fmtId <= 21)) ||
+              ((fmtId >= 45) && (fmtId <= 47))) {
+            var delta = num.parse(_parseValue(content)) * 24 * 3600 * 1000;
+            var date = DateTime(0);
+            date = date.add(Duration(milliseconds: delta.toInt()));
+            value =
+                "${_twoDigits(date.hour)}:${_twoDigits(date.minute)}:${_twoDigits(date.second)}";
+            // number
+          } else {
+            value = num.parse(_parseValue(content));
+          }
+        } else {
+          value = num.parse(_parseValue(content));
+        }
+    }
+    row.add(value);
+
+    _countFilledColumn(table, row, value);
+  }
+
+  _parseValue(XmlElement node) {
+    var buffer = StringBuffer();
+
+    node.children.forEach((child) {
+      if (child is XmlText) {
+        buffer.write(_normalizeNewLine(child.text));
+      }
+    });
+
+    return buffer.toString();
+  }
+
   /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value) {
-    //print("List tables:" + _tables.keys.toList().toString());
-    //print("Rows__ tables:" + _tables[sheet].rows.toString());
     _checkSheetArguments(sheet);
 
     if (columnIndex >= _tables[sheet]._maxCols)
@@ -294,6 +475,36 @@ abstract class ExcelIt {
       }
     }
   }
+
+  Iterable<XmlElement> _findRows(XmlElement table) => table.findElements('row');
+
+  Iterable<XmlElement> _findCells(XmlElement row) => row.findElements('c');
+
+  int _getCellNumber(XmlElement cell) =>
+      cellCoordsFromCellId(cell.getAttribute('r'))[0];
+
+  int _getRowNumber(XmlElement row) => int.parse(row.getAttribute('r'));
+
+  Iterable<XmlNode> _getNodeValue() => <XmlElement>[
+        XmlElement(XmlName('sheetPr'), [], <XmlElement>[
+          XmlElement(XmlName('outlinePr'), <XmlAttribute>[
+            XmlAttribute(XmlName('summaryBelow'), '0'),
+            XmlAttribute(XmlName('summaryRight'), '0')
+          ])
+        ]),
+        XmlElement(XmlName('sheetViews'), <XmlAttribute>[], <XmlElement>[
+          XmlElement(XmlName('sheetView'),
+              <XmlAttribute>[XmlAttribute(XmlName('workbookViewId'), '0')])
+        ]),
+        XmlElement(XmlName('sheetFormatPr'), <XmlAttribute>[
+          XmlAttribute(XmlName('customHeight'), '1'),
+          XmlAttribute(XmlName('defaultColWidth'), '14.43'),
+          XmlAttribute(XmlName('defaultRowHeight'), '15.0')
+        ]),
+        XmlElement(XmlName('sheetData')),
+        XmlElement(XmlName('drawing'),
+            <XmlAttribute>[XmlAttribute(XmlName('r:id'), 'rId1')])
+      ];
 }
 
 /// Table of a spreadsheet file
@@ -315,3 +526,20 @@ class SpreadsheetTable {
   /// Get max cols
   int get maxCols => _maxCols;
 }
+
+/* XmlElement t = XmlElement(XmlName('mergeCells'),
+              <XmlAttribute>[XmlAttribute(XmlName('count'), '3')]);
+      
+          t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
+            XmlAttribute(XmlName('ref'), 'D1:D4'),
+          ]));
+          t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
+            XmlAttribute(XmlName('ref'), 'A5:B5'),
+          ]));
+          t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
+            XmlAttribute(XmlName('ref'), 'A2:B4'),
+          ]));
+      
+          worksheet.children.add(t);
+      
+          print(worksheet.children.toList().toString()); */

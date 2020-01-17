@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:excel_it/excel_it.dart';
 
 main(List<String> args) {
-  var file = "/Users/kawal/Desktop/excel_it/test/files/test.xlsx";
+  var file = "/Users/kawal/Desktop/excel_it/test/files/default.xlsx";
   var bytes = File(file).readAsBytesSync();
   var decoder = ExcelIt.decodeBytes(bytes, update: true);
   for (var table in decoder.tables.keys) {
@@ -15,18 +15,14 @@ main(List<String> args) {
     }
   }
 
-  var sheet = decoder.tables.keys.first;
+  var sheet = 'Sheet4';
   decoder
     ..updateCell(sheet, 0, 0, "A1")
     ..updateCell(sheet, 2, 0, "C1")
     ..updateCell(sheet, 0, 1, "A2")
     ..updateCell(sheet, 4, 4, "A5");
 
-  decoder
-    ..updateCell('Sheet2', 0, 0, "abc")
-    ..updateCell('Sheet2', 2, 0, "df");
-
-  File(join("/Users/kawal/Desktop/output/${basename(file)}"))
+  File(join("/Users/kawal/Desktop/output/generated/${basename(file)}"))
     ..createSync(recursive: true)
     ..writeAsBytesSync(decoder.encode());
 

@@ -1,7 +1,5 @@
 part of excel_it;
 
-const String _relationships =
-    "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 const String _relationshipsStyles =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles";
 const String _relationshipsWorksheet =
@@ -94,11 +92,8 @@ class XlsxDecoder extends ExcelIt {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   String get extension => ".xlsx";
 
-  List<String> _sharedStrings = List<String>();
-  List<int> _numFormats = List<int>();
-  String _stylesTarget;
-  String _sharedStringsTarget;
-  Map<String, String> _worksheetTargets = Map<String, String>();
+  String _stylesTarget, _sharedStringsTarget;
+  List<String> _rId;
 
   XlsxDecoder(Archive archive, {bool update = false}) {
     this._archive = archive;
@@ -108,7 +103,11 @@ class XlsxDecoder extends ExcelIt {
       _sheets = <String, XmlNode>{};
       _xmlFiles = <String, XmlDocument>{};
     }
+    _worksheetTargets = Map<String, String>();
     _tables = Map<String, SpreadsheetTable>();
+    _sharedStrings = List<String>();
+    _numFormats = List<int>();
+    _rId = new List<String>();
     _parseRelations();
     _parseStyles();
     _parseSharedStrings();
@@ -182,8 +181,6 @@ class XlsxDecoder extends ExcelIt {
     super.insertRow(sheet, rowIndex);
 
     var parent = _sheets[sheet];
-    //print("parent:\n");
-    //print(parent.following.toString());
     if (rowIndex < _tables[sheet]._maxRows - 1) {
       var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
       _insertRow(parent, foundRow, rowIndex);
@@ -226,19 +223,21 @@ class XlsxDecoder extends ExcelIt {
     if (relations != null) {
       relations.decompress();
       var document = parse(utf8.decode(relations.content));
+      _xmlFiles["xl/_rels/workbook.xml.rels"] = document;
       document.findAllElements('Relationship').forEach((node) {
+        String id = node.getAttribute('Id');
         switch (node.getAttribute('Type')) {
           case _relationshipsStyles:
             _stylesTarget = node.getAttribute('Target');
             break;
           case _relationshipsWorksheet:
-            _worksheetTargets[node.getAttribute('Id')] =
-                node.getAttribute('Target');
+            _worksheetTargets[id] = node.getAttribute('Target');
             break;
           case _relationshipsSharedStrings:
             _sharedStringsTarget = node.getAttribute('Target');
             break;
         }
+        if (!_rId.contains(id)) _rId.add(id);
       });
     }
   }
@@ -286,182 +285,14 @@ class XlsxDecoder extends ExcelIt {
     var workbook = _archive.findFile('xl/workbook.xml');
     workbook.decompress();
     var document = parse(utf8.decode(workbook.content));
+    _xmlFiles["xl/workbook.xml"] = document;
     document.findAllElements('sheet').forEach((node) {
       _parseTable(node);
     });
   }
 
-  _parseTable(XmlElement node) {
-    var name = node.getAttribute('name');
-    var target =
-        _worksheetTargets[node.getAttribute('id', namespace: _relationships)];
-    tables[name] = SpreadsheetTable(name);
-    var table = tables[name];
-
-    var file = _archive.findFile("xl/$target");
-    file.decompress();
-
-    var content = parse(utf8.decode(file.content));
-    var worksheet = content.findElements('worksheet').first;
-    //print("worksheet:\n");
-    XmlElement t = XmlElement(XmlName('mergeCells'),
-        <XmlAttribute>[XmlAttribute(XmlName('count'), '3')]);
-
-    t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-      XmlAttribute(XmlName('ref'), 'D1:D4'),
-    ]));
-    t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-      XmlAttribute(XmlName('ref'), 'A5:B5'),
-    ]));
-    t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-      XmlAttribute(XmlName('ref'), 'A2:B4'),
-    ]));
-
-    worksheet.children.add(t);
-
-    print(worksheet.children.toList().toString());
-    var sheet = worksheet.findElements('sheetData').first;
-
-    _findRows(sheet).forEach((child) {
-      _parseRow(child, table);
-    });
-    if (_update == true) {
-      _sheets[name] = sheet;
-      _xmlFiles["xl/$target"] = content;
-    }
-
-    _normalizeTable(table);
-  }
-
-  _parseRow(XmlElement node, SpreadsheetTable table) {
-    var row = List();
-
-    _findCells(node).forEach((child) {
-      _parseCell(child, table, row);
-    });
-
-    var rowIndex = _getRowNumber(node) - 1;
-    if (_isNotEmptyRow(row) && rowIndex > table._rows.length) {
-      var repeat = rowIndex - table._rows.length;
-      for (var index = 0; index < repeat; index++) {
-        table._rows.add(List());
-      }
-    }
-
-    if (_isNotEmptyRow(row)) {
-      table._rows.add(row);
-    } else {
-      table._rows.add(List());
-    }
-
-    _countFilledRow(table, row);
-  }
-
-  _parseCell(XmlElement node, SpreadsheetTable table, List row) {
-    var colIndex = _getCellNumber(node) - 1;
-    if (colIndex > row.length) {
-      var repeat = colIndex - row.length;
-      for (var index = 0; index < repeat; index++) {
-        row.add(null);
-      }
-    }
-
-    if (node.children.isEmpty) {
-      return;
-    }
-
-    var value;
-    var type = node.getAttribute('t');
-
-    switch (type) {
-      // sharedString
-      case 's':
-        value = _sharedStrings[
-            int.parse(_parseValue(node.findElements('v').first))];
-        break;
-      // boolean
-      case 'b':
-        value = _parseValue(node.findElements('v').first) == '1';
-        break;
-      // error
-      case 'e':
-      // formula
-      case 'str':
-        // <c r="C6" s="1" vm="15" t="str">
-        //  <f>CUBEVALUE("xlextdat9 Adventure Works",C$5,$A6)</f>
-        //  <v>2838512.355</v>
-        // </c>
-        value = _parseValue(node.findElements('v').first);
-        break;
-      // inline string
-      case 'inlineStr':
-        // <c r="B2" t="inlineStr">
-        // <is><t>Hello world</t></is>
-        // </c>
-        value = _parseValue(node.findAllElements('t').first);
-        break;
-      // number
-      case 'n':
-      default:
-        var s = node.getAttribute('s');
-        var valueNode = node.findElements('v');
-        var content = valueNode.first;
-        if (s != null) {
-          var fmtId = _numFormats[int.parse(s)];
-          // date
-          if (((fmtId >= 14) && (fmtId <= 17)) || (fmtId == 22)) {
-            var delta = num.parse(_parseValue(content)) * 24 * 3600 * 1000;
-            var date = DateTime(1899, 12, 30);
-            value = date
-                .add(Duration(milliseconds: delta.toInt()))
-                .toIso8601String();
-            // time
-          } else if (((fmtId >= 18) && (fmtId <= 21)) ||
-              ((fmtId >= 45) && (fmtId <= 47))) {
-            var delta = num.parse(_parseValue(content)) * 24 * 3600 * 1000;
-            var date = DateTime(0);
-            date = date.add(Duration(milliseconds: delta.toInt()));
-            value =
-                "${_twoDigits(date.hour)}:${_twoDigits(date.minute)}:${_twoDigits(date.second)}";
-            // number
-          } else {
-            value = num.parse(_parseValue(content));
-          }
-        } else {
-          value = num.parse(_parseValue(content));
-        }
-    }
-    row.add(value);
-
-    _countFilledColumn(table, row, value);
-  }
-
-  _parseValue(XmlElement node) {
-    var buffer = StringBuffer();
-
-    node.children.forEach((child) {
-      if (child is XmlText) {
-        buffer.write(_normalizeNewLine(child.text));
-      }
-    });
-
-    return buffer.toString();
-  }
-
-  static Iterable<XmlElement> _findRows(XmlElement table) =>
-      table.findElements('row');
-
-  static Iterable<XmlElement> _findCells(XmlElement row) =>
-      row.findElements('c');
-
-  static int _getRowNumber(XmlElement row) => int.parse(row.getAttribute('r'));
   static void _setRowNumber(XmlElement row, int index) =>
       row.getAttributeNode('r').value = index.toString();
-
-  static int _getCellNumber(XmlElement cell) {
-    var coords = cellCoordsFromCellId(cell.getAttribute('r'));
-    return coords[0];
-  }
 
   static void _setCellColNumber(XmlElement cell, int colIndex) {
     var attr = cell.getAttributeNode('r');
@@ -475,7 +306,7 @@ class XlsxDecoder extends ExcelIt {
     attr.value = '${numericToLetters(coords[0])}${rowIndex}';
   }
 
-  static XmlElement _findRowByIndex(XmlElement table, int rowIndex) {
+  XmlElement _findRowByIndex(XmlElement table, int rowIndex) {
     XmlElement row;
     var rows = _findRows(table);
 
@@ -496,7 +327,7 @@ class XlsxDecoder extends ExcelIt {
     return row;
   }
 
-  static XmlElement _updateCell(
+  XmlElement _updateCell(
       XmlElement node, int columnIndex, int rowIndex, dynamic value) {
     XmlElement cell;
     var cells = _findCells(node);
@@ -535,8 +366,6 @@ class XlsxDecoder extends ExcelIt {
       var index = table.children.indexOf(lastRow);
       table.children.insert(index, row);
     }
-    //print("table-children:\n");
-    //print(table.firstChild.toString());
     return row;
   }
 
