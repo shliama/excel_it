@@ -3,7 +3,7 @@ import 'package:path/path.dart';
 import 'package:excel_it/excel_it.dart';
 
 main(List<String> args) {
-  var file = "/Users/kawal/Desktop/excel_it/test/files/test.xlsx";
+  var file = "/Users/kawal/Desktop/test.xlsx";
   var bytes = File(file).readAsBytesSync();
   var decoder = ExcelIt.decodeBytes(bytes, update: true);
   for (var table in decoder.tables.keys) {
