@@ -9,7 +9,7 @@ main(List<String> args) {
   var decoder = ExcelIt.createExcel();  //.decodeBytes(bytes, update: true);
 
   print(decoder.toString());
-  /* for (var table in decoder.tables.keys) {
+  for (var table in decoder.tables.keys) {
     print(table);
     print(decoder.tables[table].maxCols);
     print(decoder.tables[table].maxRows);
@@ -38,5 +38,5 @@ main(List<String> args) {
     for (var row in decoder.tables[table].rows) {
       print("$row");
     }
-  } */
+  }
 }
