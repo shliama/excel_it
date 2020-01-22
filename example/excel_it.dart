@@ -2,11 +2,14 @@ import 'dart:io';
 import 'package:path/path.dart';
 import 'package:excel_it/excel_it.dart';
 
+//excel_it/test/files
 main(List<String> args) {
   var file = "/Users/kawal/Desktop/test.xlsx";
-  var bytes = File(file).readAsBytesSync();
-  var decoder = ExcelIt.decodeBytes(bytes, update: true);
-  for (var table in decoder.tables.keys) {
+  //var bytes = File(file).readAsBytesSync();
+  var decoder = ExcelIt.createExcel();  //.decodeBytes(bytes, update: true);
+
+  print(decoder.toString());
+  /* for (var table in decoder.tables.keys) {
     print(table);
     print(decoder.tables[table].maxCols);
     print(decoder.tables[table].maxRows);
@@ -15,12 +18,12 @@ main(List<String> args) {
     }
   }
 
-  var sheet = 'Sheet4';
+  var sheet = 'Sheet1';
   decoder
-    ..updateCell(sheet, 0, 0, "A1")
-    ..updateCell(sheet, 2, 0, "C1")
-    ..updateCell(sheet, 0, 1, "A2")
-    ..updateCell(sheet, 4, 4, "A5");
+    ..updateCell(sheet, 0, 0, "Font RED")
+    ..updateCell(sheet, 2, 0, "Font BLUE")
+    ..updateCell(sheet, 0, 1, "Font GREEN")
+    ..updateCell(sheet, 4, 4, "Font Orange");
 
   File(join("/Users/kawal/Desktop/${basename(file)}"))
     ..createSync(recursive: true)
@@ -35,5 +38,5 @@ main(List<String> args) {
     for (var row in decoder.tables[table].rows) {
       print("$row");
     }
-  }
+  } */
 }

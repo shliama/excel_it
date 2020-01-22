@@ -65,6 +65,13 @@ abstract class ExcelIt {
 
   ExcelIt();
 
+  factory ExcelIt.createExcel() {
+    print("Directory:\n" + Directory.current.toString());
+    List<int> data = File(Directory.current.toString()).readAsBytesSync();
+    ;
+    var archive = ZipDecoder().decodeBytes(data, verify: false);
+    return _newExcelIt(archive, true);
+  }
   factory ExcelIt.decodeBytes(List<int> data,
       {bool update: false, bool verify: false}) {
     var archive = ZipDecoder().decodeBytes(data, verify: verify);
