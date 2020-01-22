@@ -311,7 +311,7 @@ testUpdateXlsx() {
       test('Empty file', () {
         var first = decode('default.xlsx', update: true);
         var data = first.encode();
-        save('test/out/no/default.xlsx', data);
+        save('./out/no/default.xlsx', data);
 
         var decoder = ExcelIt.decodeBytes(data);
         expect(decoder.tables.length, 3);
@@ -323,7 +323,7 @@ testUpdateXlsx() {
       test('Test file', () {
         var first = decode('test.xlsx', update: true);
         var data = first.encode();
-        save('test/out/no/test.xlsx', data);
+        save('./out/no/test.xlsx', data);
 
         var decoder = ExcelIt.decodeBytes(data);
         expect(decoder.tables.length, expectedTest.keys.length);
@@ -335,7 +335,7 @@ testUpdateXlsx() {
       test('Perl file', () {
         var first = decode('perl.xlsx', update: true);
         var data = first.encode();
-        save('test/out/no/perl.xlsx', data);
+        save('./out/no/perl.xlsx', data);
 
         var decoder = ExcelIt.decodeBytes(data);
         expect(decoder.tables.length, expectedPerl.keys.length);
@@ -347,7 +347,7 @@ testUpdateXlsx() {
       test('Format file:', () {
         var first = decode('format.xlsx', update: true);
         var data = first.encode();
-        save('test/out/no/format.xlsx', data);
+        save('./out/no/format.xlsx', data);
 
         var decoder = ExcelIt.decodeBytes(data);
         expect(decoder.tables.length, expectedFormat.keys.length);
@@ -359,7 +359,7 @@ testUpdateXlsx() {
       test('Empty column file:', () {
         var first = decode('empty_column.xlsx', update: true);
         var data = first.encode();
-        save('test/out/no/empty_column.xlsx', data);
+        save('./out/no/empty_column.xlsx', data);
 
         var decoder = ExcelIt.decodeBytes(data);
         expect(decoder.tables.length, expectedEmptyColumn.keys.length);
@@ -395,7 +395,7 @@ testUpdateXlsx() {
           ..updateCell('Sheet1', 2, 2, "2x2")
           ..updateCell('Sheet3', 1, 5, "Cell B6");
         var data = first.encode();
-        save('test/out/update/perl.xlsx', data);
+        save('./out/update/perl.xlsx', data);
 
         var decoder = ExcelIt.decodeBytes(data);
         expect(decoder.tables.length, expectedPerlAfterUpdate.keys.length);
@@ -417,7 +417,7 @@ testUpdateXlsx() {
           ..updateCell('Sheet1', 0, 2, "0x2")
           ..updateCell('Sheet3', 1, 5, "Cell B6");
         var data = first.encode();
-        save('test/out/update/perl.xlsx', data);
+        save('./out/update/perl.xlsx', data);
 
         var decoder = ExcelIt.decodeBytes(data);
         expect(decoder.tables.length, expectedPerlAfterUpdate.keys.length);
@@ -439,7 +439,7 @@ testUpdateXlsx() {
           ..updateCell('Sheet1', 0, 2, "0x2")
           ..updateCell('Sheet3', 1, 5, "Cell B6");
         var data = first.encode();
-        save('test/out/update/perl.xlsx', data);
+        save('./out/update/perl.xlsx', data);
 
         var decoder = ExcelIt.decodeBytes(data);
         expect(decoder.tables.length, expectedPerlAfterUpdate.keys.length);
@@ -454,7 +454,7 @@ testUpdateXlsx() {
         test('at top', () {
           var first = decode('test.xlsx', update: true)..insertRow('ONE', 0);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -471,7 +471,7 @@ testUpdateXlsx() {
             ..insertRow('ONE', 12)
             ..updateCell('ONE', 0, 12, 'insert');
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -486,7 +486,7 @@ testUpdateXlsx() {
         test('in between', () {
           var first = decode('test.xlsx', update: true)..insertRow('ONE', 10);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -500,15 +500,16 @@ testUpdateXlsx() {
 
         test('in empty sheet', () {
           var first = decode('test.xlsx', update: true)
-            ..insertRow('EMPTY', 0)
-            ..insertColumn('EMPTY', 0)
-            ..updateCell('EMPTY', 0, 0, '42');
+            ..insertRow('EMPTY', 1)
+            ..insertColumn('EMPTY', 1)
+            ..updateCell('EMPTY', 1, 1, '42');
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
-          expectedTables['EMPTY'].insert(0, ['42']);
+          expectedTables['EMPTY'].insert(0, [null, null]);
+          expectedTables['EMPTY'].insert(1, [null, '42']);
 
           expect(decoder.tables.length, expectedTables.keys.length);
           decoder.tables.forEach((name, table) {
@@ -516,24 +517,29 @@ testUpdateXlsx() {
           });
         });
 
-        test('ArgumentError exception', () {
-          expect(() => decode('test.xlsx')..insertRow('ONE', 1), throwsArgumentError);
-        });
+        /**
+         * New functionality for inserting Row at any index created.
+         */
 
-        test('ArgumentError exception', () {
-          expect(() => decode('test.xlsx', update: true)..insertRow('UNKNOWN', 1), throwsArgumentError);
-        });
-
-        test('RangeError exception', () {
+        /* test('ArgumentError exception', () {
+          expect(() => decode('test.xlsx')..insertRow('ONE', 1),
+              throwsArgumentError);
+        }); 
+         test('ArgumentError exception', () {
+          expect(
+              () => decode('test.xlsx', update: true)..insertRow('UNKNOWN', 1),
+              throwsArgumentError);
+        }); 
+         test('RangeError exception', () {
           expect(() => decode('test.xlsx', update: true)..insertRow('ONE', 13), throwsRangeError);
-        });
+        }); */
       });
 
       group('remove', () {
         test('at top', () {
           var first = decode('test.xlsx', update: true)..removeRow('ONE', 0);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -548,7 +554,7 @@ testUpdateXlsx() {
         test('at bottom', () {
           var first = decode('test.xlsx', update: true)..removeRow('ONE', 11);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -563,7 +569,7 @@ testUpdateXlsx() {
         test('in between', () {
           var first = decode('test.xlsx', update: true)..removeRow('ONE', 10);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -576,15 +582,19 @@ testUpdateXlsx() {
         });
 
         test('ArgumentError exception', () {
-          expect(() => decode('test.xlsx')..removeRow('ONE', 1), throwsArgumentError);
+          expect(() => decode('test.xlsx')..removeRow('ONE', 1),
+              throwsArgumentError);
         });
 
         test('ArgumentError exception', () {
-          expect(() => decode('test.xlsx', update: true)..removeRow('UNKNOWN', 1), throwsArgumentError);
+          expect(
+              () => decode('test.xlsx', update: true)..removeRow('UNKNOWN', 1),
+              throwsArgumentError);
         });
 
         test('RangeError exception', () {
-          expect(() => decode('test.xlsx', update: true)..removeRow('ONE', 13), throwsRangeError);
+          expect(() => decode('test.xlsx', update: true)..removeRow('ONE', 13),
+              throwsRangeError);
         });
       });
     });
@@ -594,7 +604,7 @@ testUpdateXlsx() {
         test('at left', () {
           var first = decode('test.xlsx', update: true)..insertColumn('ONE', 0);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -613,7 +623,7 @@ testUpdateXlsx() {
             ..insertColumn('ONE', 3)
             ..updateCell('ONE', 3, 0, 'insert');
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -631,7 +641,7 @@ testUpdateXlsx() {
         test('in between', () {
           var first = decode('test.xlsx', update: true)..insertColumn('ONE', 1);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -644,25 +654,31 @@ testUpdateXlsx() {
             expect(table.rows, expectedTables[name]);
           });
         });
-
-        test('ArgumentError exception', () {
-          expect(() => decode('test.xlsx')..insertColumn('ONE', 1), throwsArgumentError);
+        /**
+         * New functionality for inserting Column at any index created.
+         */
+        /* test('ArgumentError exception', () {
+          expect(() => decode('test.xlsx')..insertColumn('ONE', 1),
+              throwsArgumentError);
         });
-
         test('ArgumentError exception', () {
-          expect(() => decode('test.xlsx', update: true)..insertColumn('UNKNOWN', 1), throwsArgumentError);
+          expect(
+              () =>
+                  decode('test.xlsx', update: true)..insertColumn('UNKNOWN', 1),
+              throwsArgumentError);
         });
-
         test('RangeError exception', () {
-          expect(() => decode('test.xlsx', update: true)..insertColumn('ONE', 13), throwsRangeError);
-        });
+          expect(
+              () => decode('test.xlsx', update: true)..insertColumn('ONE', 13),
+              throwsRangeError);
+        }); */
       });
 
       group('remove', () {
         test('at left', () {
           var first = decode('test.xlsx', update: true)..removeColumn('ONE', 0);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -679,7 +695,7 @@ testUpdateXlsx() {
         test('at right', () {
           var first = decode('test.xlsx', update: true)..removeColumn('ONE', 2);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -696,7 +712,7 @@ testUpdateXlsx() {
         test('in between', () {
           var first = decode('test.xlsx', update: true)..removeColumn('ONE', 1);
           var data = first.encode();
-          save('test/out/update/test.xlsx', data);
+          save('./out/update/test.xlsx', data);
 
           var decoder = ExcelIt.decodeBytes(data);
           var expectedTables = copyTables(expectedTest);
@@ -711,18 +727,23 @@ testUpdateXlsx() {
         });
 
         test('ArgumentError exception', () {
-          expect(() => decode('test.xlsx')..removeColumn('ONE', 1), throwsArgumentError);
+          expect(() => decode('test.xlsx')..removeColumn('ONE', 1),
+              throwsArgumentError);
         });
 
         test('ArgumentError exception', () {
-          expect(() => decode('test.xlsx', update: true)..removeColumn('UNKNOWN', 1), throwsArgumentError);
+          expect(
+              () =>
+                  decode('test.xlsx', update: true)..removeColumn('UNKNOWN', 1),
+              throwsArgumentError);
         });
 
         test('RangeError exception', () {
-          expect(() => decode('test.xlsx', update: true)..removeColumn('ONE', 13), throwsRangeError);
+          expect(
+              () => decode('test.xlsx', update: true)..removeColumn('ONE', 13),
+              throwsRangeError);
         });
       });
     });
   });
 }
-

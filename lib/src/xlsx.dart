@@ -223,7 +223,7 @@ class XlsxDecoder extends ExcelIt {
     if (relations != null) {
       relations.decompress();
       var document = parse(utf8.decode(relations.content));
-      _xmlFiles["xl/_rels/workbook.xml.rels"] = document;
+      if (_xmlFiles != null) _xmlFiles["xl/_rels/workbook.xml.rels"] = document;
       document.findAllElements('Relationship').forEach((node) {
         String id = node.getAttribute('Id');
         switch (node.getAttribute('Type')) {
@@ -285,7 +285,7 @@ class XlsxDecoder extends ExcelIt {
     var workbook = _archive.findFile('xl/workbook.xml');
     workbook.decompress();
     var document = parse(utf8.decode(workbook.content));
-    _xmlFiles["xl/workbook.xml"] = document;
+    if (_xmlFiles != null) _xmlFiles["xl/workbook.xml"] = document;
     document.findAllElements('sheet').forEach((node) {
       _parseTable(node);
     });

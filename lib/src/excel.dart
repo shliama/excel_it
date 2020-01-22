@@ -180,7 +180,7 @@ abstract class ExcelIt {
   /// Insert column in [sheet] at position [columnIndex]
   void insertColumn(String sheet, int columnIndex) {
     _checkSheetArguments(sheet);
-    if (columnIndex < 0 /* || columnIndex > _tables[sheet]._maxCols */) {
+    if (columnIndex < 0 /* || columnIndex > _tables[sheet]._maxCols  */) {
       throw RangeError.range(columnIndex, 0, _tables[sheet]._maxCols);
     }
 
@@ -243,6 +243,104 @@ abstract class ExcelIt {
     var table = _tables[sheet];
     table.rows.removeAt(rowIndex);
     table._maxRows--;
+  }
+
+  /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
+  void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value) {
+    _checkSheetArguments(sheet);
+
+    if (columnIndex >= _tables[sheet]._maxCols)
+      insertColumn(sheet, columnIndex);
+
+    if (rowIndex >= _tables[sheet]._maxRows) insertRow(sheet, rowIndex);
+
+    _tables[sheet].rows[rowIndex][columnIndex] = value.toString();
+  }
+
+  /// Encode bytes after update
+  List<int> encode() {
+    if (_update != true) {
+      throw ArgumentError("'update' should be set to 'true' on constructor");
+    }
+
+    for (var xmlFile in _xmlFiles.keys) {
+      var xml = _xmlFiles[xmlFile].toString();
+      var content = utf8.encode(xml);
+      _archiveFiles[xmlFile] = ArchiveFile(xmlFile, content.length, content);
+    }
+    return ZipEncoder().encode(_cloneArchive(_archive));
+  }
+
+  /// Encode data url
+  String dataUrl() {
+    var buffer = StringBuffer();
+    buffer.write("data:${mediaType};base64,");
+    buffer.write(base64Encode(encode()));
+    return buffer.toString();
+  }
+
+  Archive _cloneArchive(Archive archive) {
+    var clone = Archive();
+    archive.files.forEach((file) {
+      if (file.isFile) {
+        ArchiveFile copy;
+        if (_archiveFiles.containsKey(file.name)) {
+          copy = _archiveFiles[file.name];
+        } else {
+          var content = (file.content as Uint8List).toList();
+          //var compress = file.compress;
+          var compress = _noCompression.contains(file.name) ? false : true;
+          copy = ArchiveFile(file.name, content.length, content)
+            ..compress = compress;
+        }
+        clone.addFile(copy);
+      }
+    });
+    return clone;
+  }
+
+  _normalizeTable(SpreadsheetTable table) {
+    if (table._maxRows == 0) {
+      table._rows.clear();
+    } else if (table._maxRows < table._rows.length) {
+      table._rows.removeRange(table._maxRows, table._rows.length);
+    }
+    for (var row = 0; row < table._rows.length; row++) {
+      if (table._maxCols == 0) {
+        table._rows[row].clear();
+      } else if (table._maxCols < table._rows[row].length) {
+        table._rows[row].removeRange(table._maxCols, table._rows[row].length);
+      } else if (table._maxCols > table._rows[row].length) {
+        var repeat = table._maxCols - table._rows[row].length;
+        for (var index = 0; index < repeat; index++) {
+          table._rows[row].add(null);
+        }
+      }
+    }
+  }
+
+  bool _isEmptyRow(List row) {
+    return row.fold(true, (value, element) => value && (element == null));
+  }
+
+  bool _isNotEmptyRow(List row) {
+    return !_isEmptyRow(row);
+  }
+
+  _countFilledRow(SpreadsheetTable table, List row) {
+    if (_isNotEmptyRow(row)) {
+      if (table._maxRows < table._rows.length) {
+        table._maxRows = table._rows.length;
+      }
+    }
+  }
+
+  _countFilledColumn(SpreadsheetTable table, List row, dynamic value) {
+    if (value != null) {
+      if (table._maxCols < row.length) {
+        table._maxCols = row.length;
+      }
+    }
   }
 
   _parseTable(XmlElement node) {
@@ -385,104 +483,6 @@ abstract class ExcelIt {
     return buffer.toString();
   }
 
-  /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
-  void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value) {
-    _checkSheetArguments(sheet);
-
-    if (columnIndex >= _tables[sheet]._maxCols)
-      insertColumn(sheet, columnIndex);
-
-    if (rowIndex >= _tables[sheet]._maxRows) insertRow(sheet, rowIndex);
-
-    _tables[sheet].rows[rowIndex][columnIndex] = value.toString();
-  }
-
-  /// Encode bytes after update
-  List<int> encode() {
-    if (_update != true) {
-      throw ArgumentError("'update' should be set to 'true' on constructor");
-    }
-
-    for (var xmlFile in _xmlFiles.keys) {
-      var xml = _xmlFiles[xmlFile].toString();
-      var content = utf8.encode(xml);
-      _archiveFiles[xmlFile] = ArchiveFile(xmlFile, content.length, content);
-    }
-    return ZipEncoder().encode(_cloneArchive(_archive));
-  }
-
-  /// Encode data url
-  String dataUrl() {
-    var buffer = StringBuffer();
-    buffer.write("data:${mediaType};base64,");
-    buffer.write(base64Encode(encode()));
-    return buffer.toString();
-  }
-
-  Archive _cloneArchive(Archive archive) {
-    var clone = Archive();
-    archive.files.forEach((file) {
-      if (file.isFile) {
-        ArchiveFile copy;
-        if (_archiveFiles.containsKey(file.name)) {
-          copy = _archiveFiles[file.name];
-        } else {
-          var content = (file.content as Uint8List).toList();
-          //var compress = file.compress;
-          var compress = _noCompression.contains(file.name) ? false : true;
-          copy = ArchiveFile(file.name, content.length, content)
-            ..compress = compress;
-        }
-        clone.addFile(copy);
-      }
-    });
-    return clone;
-  }
-
-  _normalizeTable(SpreadsheetTable table) {
-    if (table._maxRows == 0) {
-      table._rows.clear();
-    } else if (table._maxRows < table._rows.length) {
-      table._rows.removeRange(table._maxRows, table._rows.length);
-    }
-    for (var row = 0; row < table._rows.length; row++) {
-      if (table._maxCols == 0) {
-        table._rows[row].clear();
-      } else if (table._maxCols < table._rows[row].length) {
-        table._rows[row].removeRange(table._maxCols, table._rows[row].length);
-      } else if (table._maxCols > table._rows[row].length) {
-        var repeat = table._maxCols - table._rows[row].length;
-        for (var index = 0; index < repeat; index++) {
-          table._rows[row].add(null);
-        }
-      }
-    }
-  }
-
-  bool _isEmptyRow(List row) {
-    return row.fold(true, (value, element) => value && (element == null));
-  }
-
-  bool _isNotEmptyRow(List row) {
-    return !_isEmptyRow(row);
-  }
-
-  _countFilledRow(SpreadsheetTable table, List row) {
-    if (_isNotEmptyRow(row)) {
-      if (table._maxRows < table._rows.length) {
-        table._maxRows = table._rows.length;
-      }
-    }
-  }
-
-  _countFilledColumn(SpreadsheetTable table, List row, dynamic value) {
-    if (value != null) {
-      if (table._maxCols < row.length) {
-        table._maxCols = row.length;
-      }
-    }
-  }
-
   Iterable<XmlElement> _findRows(XmlElement table) => table.findElements('row');
 
   Iterable<XmlElement> _findCells(XmlElement row) => row.findElements('c');
@@ -533,20 +533,3 @@ class SpreadsheetTable {
   /// Get max cols
   int get maxCols => _maxCols;
 }
-
-/* XmlElement t = XmlElement(XmlName('mergeCells'),
-              <XmlAttribute>[XmlAttribute(XmlName('count'), '3')]);
-      
-          t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-            XmlAttribute(XmlName('ref'), 'D1:D4'),
-          ]));
-          t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-            XmlAttribute(XmlName('ref'), 'A5:B5'),
-          ]));
-          t.children.add(XmlElement(XmlName('mergeCell'), <XmlAttribute>[
-            XmlAttribute(XmlName('ref'), 'A2:B4'),
-          ]));
-      
-          worksheet.children.add(t);
-      
-          print(worksheet.children.toList().toString()); */

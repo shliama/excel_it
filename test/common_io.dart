@@ -3,7 +3,7 @@ import 'dart:io';
 import 'package:excel_it/excel_it.dart';
 
 List<int> _readBytes(String filename) {
-  var fullUri = Uri.file('test/files/$filename');
+  var fullUri = Uri.file('./files/$filename');
   return File.fromUri(fullUri).readAsBytesSync();
 }
 
