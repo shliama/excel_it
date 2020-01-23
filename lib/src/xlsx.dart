@@ -247,6 +247,7 @@ class XlsxDecoder extends ExcelIt {
     if (styles != null) {
       styles.decompress();
       var document = parse(utf8.decode(styles.content));
+      if (_xmlFiles != null) _xmlFiles["xl/$_stylesTarget"] = document;
       document
           .findAllElements('cellXfs')
           .first
