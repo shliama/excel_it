@@ -51,7 +51,9 @@ Excelit is a library for decoding and updating spreadsheets for XLSX files.
      */
 
     // if [MySheetName] does not exist then it will be automatically created.
+    
     var sheet = 'MySheetName';
+
     decoder
       ..updateCell(sheet, 0, 0, "Font RED")
       ..updateCell(sheet, 2, 0, "Font BLUE")
@@ -59,6 +61,7 @@ Excelit is a library for decoding and updating spreadsheets for XLSX files.
       ..updateCell(sheet, 4, 4, "Font Orange");
     
     // Save the file
+
     File(join("Path_to_Excel_File/ExcelFileName.xlsx"))
       ..createSync(recursive: true)
       ..writeAsBytesSync(decoder.encode());
