@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 
 ## [Future Updates coming soon]
-- Spanning of Rows and Column
+- Spanning of Rows and Columns
 - Changing Font Color
 
 ## [1.0.0] - 2020-01-28
