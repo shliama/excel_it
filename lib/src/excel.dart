@@ -4,11 +4,7 @@ const String _relationships =
     "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 
 const _spreasheetXlsx = 'xlsx';
-final intRegex = RegExp(r'\s+(\d+)\s+', multiLine: true);
-/* final Map<String, String> _spreasheetExtensionMap = <String, String>{
-  _spreasheetXlsx:
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-}; */
+//final intRegex = RegExp(r'\s+(\d+)\s+', multiLine: true);
 
 // Normalize new line
 String _normalizeNewLine(String text) {
@@ -39,9 +35,7 @@ const List<String> _noCompression = const <String>[
   'Thumbnails/thumbnail.png',
 ];
 
-/**
- * Decode a excel file.
- */
+/// Decode a excel file.
 abstract class ExcelIt {
   bool _update;
   Archive _archive;
@@ -82,12 +76,10 @@ abstract class ExcelIt {
     return _newExcelIt(archive, update);
   }
 
-  /**
-   * Uses the [newSheet] as the name of the sheet and also adds it to the [ xl/worksheets/ ] directory
-   * Add the sheet details in the workbook.xml. as well as in the workbook.xml.rels
-   * Then add the sheet physically into the [_xmlFiles] so as to get it into the archieve.
-   * Also add it into the [_sheets] and [_tables] map so as to allow the editing.
-   */
+  /// Uses the [newSheet] as the name of the sheet and also adds it to the [ xl/worksheets/ ] directory
+  /// Add the sheet details in the workbook.xml. as well as in the workbook.xml.rels
+  /// Then add the sheet physically into the [_xmlFiles] so as to get it into the archieve.
+  /// Also add it into the [_sheets] and [_tables] map so as to allow the editing.
   void _createSheet(String newSheet) {
     XmlElement lastSheet = _xmlFiles["xl/workbook.xml"]
         .findAllElements('sheets')
@@ -106,8 +98,8 @@ abstract class ExcelIt {
         .first
         .children
         .add(XmlElement(XmlName('Relationship'), <XmlAttribute>[
-          XmlAttribute(XmlName('Id'), 'rId${ridNumber}'),
-          XmlAttribute(XmlName('Type'), "${_relationships}/worksheet"),
+          XmlAttribute(XmlName('Id'), 'rId$ridNumber'),
+          XmlAttribute(XmlName('Type'), "$_relationships/worksheet"),
           XmlAttribute(
               XmlName('Target'), 'worksheets/sheet${sheetNumber + 1}.xml'),
         ]));
@@ -122,15 +114,15 @@ abstract class ExcelIt {
             XmlAttribute(XmlName('state'), 'visible'),
             XmlAttribute(XmlName('name'), newSheet),
             XmlAttribute(XmlName('sheetId'), '${sheetNumber + 1}'),
-            XmlAttribute(XmlName('r:id'), 'rId${ridNumber}')
+            XmlAttribute(XmlName('r:id'), 'rId$ridNumber')
           ],
         ));
 
-    _worksheetTargets['rId${ridNumber}'] =
+    _worksheetTargets['rId$ridNumber'] =
         "worksheets/sheet${sheetNumber + 1}.xml";
 
     _xmlFiles["xl/worksheets/sheet${sheetNumber + 1}.xml"] =
-        _xmlFiles["xl/worksheets/sheet${sheetNumber}.xml"];
+        _xmlFiles["xl/worksheets/sheet$sheetNumber.xml"];
 
     _xmlFiles["xl/worksheets/sheet${sheetNumber + 1}.xml"]
         .findElements('worksheet')
@@ -272,7 +264,7 @@ abstract class ExcelIt {
   /// Encode data url
   String dataUrl() {
     var buffer = StringBuffer();
-    buffer.write("data:${mediaType};base64,");
+    buffer.write("data:$mediaType;base64,");
     buffer.write(base64Encode(encode()));
     return buffer.toString();
   }

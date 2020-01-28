@@ -1,6 +1,0 @@
-language: dart
-dart:
-  - stable
-  - dev
-after_success:
-  - ./tool/coveralls.sh
