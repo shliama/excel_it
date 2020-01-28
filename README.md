@@ -40,7 +40,7 @@ Excelit is a library for decoding and updating spreadsheets for XLSX files.
      * var sheet = 'SheetName'
      * 
      * ---------- Or ----------
-     * Iterate throught the [existing sheets] by
+     * Find the desired sheet by iterating throught the [existing sheets]:
      * var sheet;
      * for (var tableName in decoder.tables.keys) {
      *    if( desiredSheetName.toString() == tableName.toString() ){
@@ -66,11 +66,12 @@ Excelit is a library for decoding and updating spreadsheets for XLSX files.
     ...
 
 ## Features coming in next version
-This on-going implementation for future:
+On-going implementation for future:
 - annotations
 - spanned rows (Comming Soon in future updates)
 - spanned columns (Comming Soon in future updates)
 - font colour (Comming Soon in future updates)
 
+## Important:
 For XLSX format, this implementation only supports native Excel format for date, time and boolean type conversion.
 In other words, custom format for date, time, boolean aren't supported and also the files exported from LibreOffice as well.

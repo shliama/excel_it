@@ -33,7 +33,7 @@ void main(List<String> args) {
    * 
    * ---------- Or ----------
    * 
-   * Iterate throught the [existing sheets] by
+   * Find the desired sheet by iterating throught the [existing sheets]:
    * var sheet;
    * for (var tableName in decoder.tables.keys) {
    *    if( desiredSheetName.toString() == tableName.toString() ){
