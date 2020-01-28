@@ -17,7 +17,7 @@ Excelit is a library for decoding and updating spreadsheets for XLSX files.
     /**
      * Create new Excel Sheet
      * var decoder = ExcelIt.createExcel();
-     * 
+     *  
      * ------------ Or ------------
      * For Editing Pre-Existing Excel File
      * 
