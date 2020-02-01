@@ -17,6 +17,7 @@ pubspec.lock
 *.dart.js
 *.part.js
 *.js.deps
+*.xlsx
 *.js.map
 *.info.json
 

@@ -262,7 +262,7 @@ abstract class ExcelIt {
 
   /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {MaterialColor color}) {
+      {int color}) {
     _checkSheetArguments(sheet);
     if (color == null) {
       print("Colour provided is null");
@@ -283,6 +283,7 @@ abstract class ExcelIt {
     if (_update != true) {
       throw ArgumentError("'update' should be set to 'true' on constructor");
     }
+    
 
     for (var xmlFile in _xmlFiles.keys) {
       var xml = _xmlFiles[xmlFile].toString();

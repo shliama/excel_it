@@ -5,6 +5,10 @@ import 'package:excel_it/excel_it.dart';
 void main(List<String> args) {
   var decoder = ExcelIt.createExcel();
 
+  //var file = "Path_to_pre_existing_Excel_File/NewExcel.xlsx";
+  //var bytes = File(file).readAsBytesSync();
+  //var decoder = ExcelIt.decodeBytes(bytes, update: true);
+
   /**
    * Create new Excel Sheet
    * var decoder = ExcelIt.createExcel();
@@ -17,7 +21,6 @@ void main(List<String> args) {
    * var decoder = ExcelIt.decodeBytes(bytes, update: true);
    **/
 
-  print(decoder.toString());
   for (var table in decoder.tables.keys) {
     print(table);
     print(decoder.tables[table].maxCols);
@@ -52,7 +55,7 @@ void main(List<String> args) {
     ..updateCell(sheet, 0, 1, "Font GREEN")
     ..updateCell(sheet, 4, 4, "Font Orange");
 
-  File(join("Path_to_Excel_File/ExcelFileName.xlsx"))
+  File(join("/Users/kawal/Desktop/ExcelFileName.xlsx"))
     ..createSync(recursive: true)
     ..writeAsBytesSync(decoder.encode());
 

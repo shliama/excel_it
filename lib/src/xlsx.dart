@@ -214,12 +214,12 @@ class XlsxDecoder extends ExcelIt {
   }
 
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {MaterialColor color}) {
+      {int color}) {
     super.updateCell(sheet, columnIndex, rowIndex, value);
 
     var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
     var colorIndex = -1;
-    color.value.toRadixString(64);
+    //color.value.toRadixString(64);
     _updateCell(foundRow, columnIndex, rowIndex, value, colorId: colorIndex);
   }
 
@@ -389,11 +389,11 @@ class XlsxDecoder extends ExcelIt {
           XmlName('r'), '${numericToLetters(columnIndex + 1)}${rowIndex + 1}'),
       XmlAttribute(XmlName('t'), 'inlineStr'),
     ];
-    if (colorId != -1)
+    /* if (colorId != -1)
       attributes.insert(
         1,
         XmlAttribute(XmlName('s'), '$colorId'),
-      );
+      ); */
     var children = value == null
         ? <XmlElement>[]
         : <XmlElement>[
