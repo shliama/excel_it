@@ -43,10 +43,12 @@ abstract class ExcelIt {
   Map<String, XmlDocument> _xmlFiles;
   Map<String, ArchiveFile> _archiveFiles;
   Map<String, String> _worksheetTargets;
+  Map<String, String> _colorStyles;
   List<String> _sharedStrings, _rId;
   List<int> _numFormats;
 
   Map<String, SpreadsheetTable> _tables;
+  String _stylesTarget;
 
   /// Media type
   String get mediaType;
@@ -158,6 +160,29 @@ abstract class ExcelIt {
     _parseTable(_xmlFiles["xl/workbook.xml"].findAllElements('sheet').last);
   }
 
+  _parseStyles(String _stylesTarget) {
+    var styles = _archive.findFile('xl/$_stylesTarget');
+    if (styles != null) {
+      styles.decompress();
+      var document = parse(utf8.decode(styles.content));
+      if (_xmlFiles != null) _xmlFiles["xl/$_stylesTarget"] = document;
+      document
+          .findAllElements('cellXfs')
+          .first
+          .findElements('xf')
+          .forEach((node) {
+        var numFmtId = node.getAttribute('numFmtId');
+        if (numFmtId != null) {
+          _numFormats.add(int.parse(numFmtId));
+        } else {
+          _numFormats.add(0);
+        }
+      });
+    }
+  }
+
+  _parseColor() {}
+
   /// Dump XML content (for debug purpose)
   String dumpXmlContent([String sheet]);
 
@@ -236,8 +261,14 @@ abstract class ExcelIt {
   }
 
   /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
-  void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value) {
+  void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
+      {MaterialColor color}) {
     _checkSheetArguments(sheet);
+    if (color == null) {
+      print("Colour provided is null");
+    }else{
+      //_colorStyles[''];
+    }
 
     if (columnIndex >= _tables[sheet]._maxCols)
       insertColumn(sheet, columnIndex);
