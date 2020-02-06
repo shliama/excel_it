@@ -66,8 +66,8 @@ abstract class ExcelIt {
   Map<String, XmlDocument> _xmlFiles;
   Map<String, ArchiveFile> _archiveFiles;
   Map<String, String> _worksheetTargets;
-  Map<String, Map<String, String>> _colorMap;
-  List<String> _sharedStrings, _rId, _colorHex;
+  Map<String, Map<String, List<String>>> _fontColorMap;
+  List<String> _sharedStrings, _rId, _fontColorHex, _backgroundColorHex;
   List<int> _numFormats;
 
   Map<String, SpreadsheetTable> _tables;
@@ -206,9 +206,9 @@ abstract class ExcelIt {
 
   /// Sets the color index from [xl/styles.xml] into their desired sheets cell into [xl/sheet_.xml]
   _setColors() {
-    List<String> overAllColor = new List<String>();
+    /*  List<String> overAllColor = new List<String>();
 
-    _colorMap.forEach((key, innerMap) {
+    _fontColorMap.forEach((key, innerMap) {
       innerMap.forEach((keyIn, color) {
         if (color == "FF000000")
           innerMap.remove(keyIn);
@@ -236,19 +236,28 @@ abstract class ExcelIt {
               "xl/worksheets/sheet${int.parse(child.getAttributeNode("sheetId").value)}.xml",
           sheetName = child.getAttributeNode("name").value;
 
-      if (_colorMap.containsKey(sheetName) && _xmlFiles.containsKey(sheetFile))
+      if (_fontColorMap.containsKey(sheetName) &&
+          _xmlFiles.containsKey(sheetFile))
         _xmlFiles[sheetFile].findAllElements("c").forEach((element) {
           String column = element.getAttributeNode("r").value;
-          if (_colorMap[sheetName].containsKey(column) &&
-              _colorHex.contains(_colorMap[sheetName][column].toString()))
-            element.getAttributeNode("s").value =
-                _colorHex.indexOf(_colorMap[sheetName][column]).toString();
+          if (_fontColorMap[sheetName].containsKey(column) &&
+              _colorHex.contains(_fontColorMap[sheetName][column].toString())) {
+            if (element.getAttributeNode("s") == null) {
+              element.attributes.add(XmlAttribute(
+                  XmlName("s"),
+                  (_colorHex.indexOf(_fontColorMap[sheetName][column]) + 1)
+                      .toString()));
+            } else
+              element.getAttributeNode("s").value =
+                  (_colorHex.indexOf(_fontColorMap[sheetName][column]) + 1)
+                      .toString();
+          }
         });
-    });
+    }); */
   }
 
   _extractColors() {
-    _xmlFiles["xl/styles.xml"].findAllElements('font').forEach((child) {
+    /* _xmlFiles["xl/styles.xml"].findAllElements('font').forEach((child) {
       if (child.getAttributeNode("rgb") != null)
         _colorHex.add(child.getAttribute("rgb"));
     });
@@ -265,9 +274,9 @@ abstract class ExcelIt {
                   element.getAttributeNode("s").value;
 
           if (color != null && int.parse(color) < _colorHex.length)
-            _colorMap[sheetName] = new Map.from({"$column": color});
+            _fontColorMap[sheetName] = new Map.from({"$column": color});
         });
-    });
+    }); */
   }
 
   /// Dump XML content (for debug purpose)
@@ -345,7 +354,7 @@ abstract class ExcelIt {
 
   /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {Color color}) {
+      {Color fontColor, Color backgroundColor}) {
     _checkSheetArguments(sheet);
 
     if (columnIndex >= _tables[sheet]._maxCols)

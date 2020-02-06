@@ -80,8 +80,9 @@ class XlsxDecoder extends ExcelIt {
       _xmlFiles = <String, XmlDocument>{};
     }
     _worksheetTargets = Map<String, String>();
-    _colorMap = Map<String, Map<String, String>>();
-    _colorHex = List<String>();
+    _fontColorMap = Map<String, Map<String, List<String>>>();
+    _fontColorHex = List<String>();
+    _backgroundColorHex = List<String>();
     _tables = Map<String, SpreadsheetTable>();
     _sharedStrings = List<String>();
     _rId = new List<String>();
@@ -191,18 +192,19 @@ class XlsxDecoder extends ExcelIt {
   }
 
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {Color color}) {
+      {Color fontColor, Color backgroundColor}) {
     super.updateCell(sheet, columnIndex, rowIndex, value);
-    if (color == null) {
+    if (fontColor == null) {
       print("Colour provided is null");
     } else {
-      String hex =
-          color.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF');
+      print(fontColor.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF').toString());
+      /* String hex =
+          color; //.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF');
 
       if (!_colorHex.contains(hex)) _colorHex.add(hex);
 
-      _colorMap[sheet] = new Map<String, String>.from(
-          {'${numericToLetters(columnIndex + 1)}${rowIndex + 1}': hex});
+      _fontColorMap[sheet] = new Map<String, String>.from(
+          {'${numericToLetters(columnIndex + 1)}${rowIndex + 1}': hex}); */
     }
 
     var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
@@ -352,13 +354,8 @@ class XlsxDecoder extends ExcelIt {
     return cell;
   }
 
-  static XmlElement _replaceCell(
-    XmlElement row,
-    XmlElement lastCell,
-    int columnIndex,
-    int rowIndex,
-    dynamic value,
-  ) {
+  static XmlElement _replaceCell(XmlElement row, XmlElement lastCell,
+      int columnIndex, int rowIndex, dynamic value) {
     var index = lastCell == null ? 0 : row.children.indexOf(lastCell);
     var cell = _createCell(columnIndex, rowIndex, value);
     row.children
