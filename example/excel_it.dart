@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'dart:ui';
 import 'package:path/path.dart';
 import 'package:excel_it/excel_it.dart';
 
@@ -52,7 +51,7 @@ void main(List<String> args) {
 
   decoder
     ..updateCell(sheet, 0, 0, "Font RED",
-        fontColor: Color.fromARGB(0xFF, 0x42, 0xA5, 0xF5))
+        fontColorHex: "FFFF9900")
     ..updateCell(sheet, 2, 0, "Font BLUE")
     ..updateCell(sheet, 0, 1, "Font GREEN")
     ..updateCell(sheet, 4, 4, "Font Orange");
@@ -64,13 +63,13 @@ void main(List<String> args) {
   print(
       "\n****************************** Printing Updated Data ******************************\n");
   for (var table in decoder.tables.keys) {
-    print("Table Name:-" + table);
-    print("Max Columns:-" + decoder.tables[table].maxCols.toString());
-    print("Max Rows:-" + decoder.tables[table].maxRows.toString());
+    print("Table Name : " + table);
+    print("Max Columns: " + decoder.tables[table].maxCols.toString());
+    print("Max Rows   : " + decoder.tables[table].maxRows.toString());
     print("Data in Table:\n");
-    for (var row in decoder.tables[table].rows) {
+    for (var row in decoder.tables[table].rows)
       print("$row");
-    }
+    
     print("\n******************************\n");
   }
 }

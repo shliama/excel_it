@@ -353,8 +353,9 @@ abstract class ExcelIt {
   }
 
   /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
+  /// [fontColorHex] or [backgroundColorHex] as example [#FF0000]
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {Color fontColor, Color backgroundColor}) {
+      {String fontColorHex, String backgroundColorHex}) {
     _checkSheetArguments(sheet);
 
     if (columnIndex >= _tables[sheet]._maxCols)

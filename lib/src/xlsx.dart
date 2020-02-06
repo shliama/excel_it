@@ -184,20 +184,18 @@ class XlsxDecoder extends ExcelIt {
     parent.children.skipWhile((row) => row != foundRow).forEach((row) {
       var rIndex = _getRowNumber(row) - 1;
       _setRowNumber(row, rIndex);
-      _findCells(row).forEach((cell) {
-        _setCellRowNumber(cell, rIndex);
-      });
+      _findCells(row).forEach((cell) => _setCellRowNumber(cell, rIndex));
     });
     parent.children.remove(foundRow);
   }
 
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {Color fontColor, Color backgroundColor}) {
+      {String fontColorHex, String backgroundColorHex}) {
     super.updateCell(sheet, columnIndex, rowIndex, value);
-    if (fontColor == null) {
+    if (fontColorHex == null) {
       print("Colour provided is null");
     } else {
-      print(fontColor.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF').toString());
+      //print(fontColor.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF').toString());
       /* String hex =
           color; //.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF');
 
