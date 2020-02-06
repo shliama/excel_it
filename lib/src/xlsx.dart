@@ -26,30 +26,6 @@ int lettersToNumeric(String letters) {
   return sum;
 }
 
-/// Convert a number to character based column
-String numericToLetters(int number) {
-  var letters = '';
-
-  while (number != 0) {
-    // Set remainder from 1..26
-    var remainder = number % 26;
-
-    if (remainder == 0) {
-      remainder = 26;
-    }
-
-    // Convert the remainder to a character.
-    var letter = String.fromCharCode(65 + remainder - 1);
-
-    // Accumulate the column letters, right to left.
-    letters = letter + letters;
-
-    // Get the next order of magnitude.
-    number = (number - 1) ~/ 26;
-  }
-  return letters;
-}
-
 int _letterOnly(int rune) {
   if (65 <= rune && rune <= 90) {
     return rune;
@@ -98,22 +74,23 @@ class XlsxDecoder extends ExcelIt {
   XlsxDecoder(Archive archive, {bool update = false}) {
     this._archive = archive;
     this._update = update;
-    if (_update == true) {
+    if (_update) {
       _archiveFiles = <String, ArchiveFile>{};
       _sheets = <String, XmlNode>{};
       _xmlFiles = <String, XmlDocument>{};
     }
     _worksheetTargets = Map<String, String>();
-    _colorStyles = Map<String, String>();
+    _colorMap = Map<String, Map<String, String>>();
+    _colorHex = List<String>();
     _tables = Map<String, SpreadsheetTable>();
     _sharedStrings = List<String>();
-    _numFormats = List<int>();
     _rId = new List<String>();
+    _numFormats = List<int>();
     _parseRelations();
     _parseStyles(_stylesTarget);
     _parseSharedStrings();
     _parseContent();
-    _parseColor();
+    _extractColors();
   }
 
   String dumpXmlContent([String sheet]) {
@@ -129,8 +106,8 @@ class XlsxDecoder extends ExcelIt {
     }
   }
 
-  void insertColumn(String sheet, int columnIndex) {
-    super.insertColumn(sheet, columnIndex);
+  void _insertColumn(String sheet, int columnIndex) {
+    super._insertColumn(sheet, columnIndex);
 
     for (var row in _findRows(_sheets[sheet])) {
       XmlElement cell;
@@ -179,13 +156,13 @@ class XlsxDecoder extends ExcelIt {
     }
   }
 
-  void insertRow(String sheet, int rowIndex) {
-    super.insertRow(sheet, rowIndex);
+  void _insertRow(String sheet, int rowIndex) {
+    super._insertRow(sheet, rowIndex);
 
     var parent = _sheets[sheet];
     if (rowIndex < _tables[sheet]._maxRows - 1) {
       var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
-      _insertRow(parent, foundRow, rowIndex);
+      __insertRow(parent, foundRow, rowIndex);
       parent.children.skipWhile((row) => row != foundRow).forEach((row) {
         var rIndex = _getRowNumber(row) + 1;
         _setRowNumber(row, rIndex);
@@ -194,7 +171,7 @@ class XlsxDecoder extends ExcelIt {
         });
       });
     } else {
-      _insertRow(parent, null, rowIndex);
+      __insertRow(parent, null, rowIndex);
     }
   }
 
@@ -214,13 +191,22 @@ class XlsxDecoder extends ExcelIt {
   }
 
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {int color}) {
+      {Color color}) {
     super.updateCell(sheet, columnIndex, rowIndex, value);
+    if (color == null) {
+      print("Colour provided is null");
+    } else {
+      String hex =
+          color.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF');
+
+      if (!_colorHex.contains(hex)) _colorHex.add(hex);
+
+      _colorMap[sheet] = new Map<String, String>.from(
+          {'${numericToLetters(columnIndex + 1)}${rowIndex + 1}': hex});
+    }
 
     var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
-    var colorIndex = -1;
-    //color.value.toRadixString(64);
-    _updateCell(foundRow, columnIndex, rowIndex, value, colorId: colorIndex);
+    _updateCell(foundRow, columnIndex, rowIndex, value);
   }
 
   _parseRelations() {
@@ -306,15 +292,14 @@ class XlsxDecoder extends ExcelIt {
 
     // Create row if required
     if (row == null || currentIndex != rowIndex) {
-      row = _insertRow(table, row, rowIndex);
+      row = __insertRow(table, row, rowIndex);
     }
 
     return row;
   }
 
   XmlElement _updateCell(
-      XmlElement node, int columnIndex, int rowIndex, dynamic value,
-      {int colorId: -1}) {
+      XmlElement node, int columnIndex, int rowIndex, dynamic value) {
     XmlElement cell;
     var cells = _findCells(node);
 
@@ -328,11 +313,9 @@ class XlsxDecoder extends ExcelIt {
     }
 
     if (cell == null || currentIndex != columnIndex) {
-      cell = _insertCell(node, cell, columnIndex, rowIndex, value,
-          colorId: colorId);
+      cell = _insertCell(node, cell, columnIndex, rowIndex, value);
     } else {
-      cell = _replaceCell(node, cell, columnIndex, rowIndex, value,
-          colorId: colorId);
+      cell = _replaceCell(node, cell, columnIndex, rowIndex, value);
     }
 
     return cell;
@@ -345,7 +328,7 @@ class XlsxDecoder extends ExcelIt {
     return XmlElement(XmlName('row'), attributes, []);
   }
 
-  static XmlElement _insertRow(
+  static XmlElement __insertRow(
       XmlElement table, XmlElement lastRow, int rowIndex) {
     var row = _createRow(rowIndex);
     if (lastRow == null) {
@@ -358,9 +341,8 @@ class XlsxDecoder extends ExcelIt {
   }
 
   static XmlElement _insertCell(XmlElement row, XmlElement lastCell,
-      int columnIndex, int rowIndex, dynamic value,
-      {int colorId: -1}) {
-    var cell = _createCell(columnIndex, rowIndex, value, colorId: colorId);
+      int columnIndex, int rowIndex, dynamic value) {
+    var cell = _createCell(columnIndex, rowIndex, value);
     if (lastCell == null) {
       row.children.add(cell);
     } else {
@@ -370,11 +352,15 @@ class XlsxDecoder extends ExcelIt {
     return cell;
   }
 
-  static XmlElement _replaceCell(XmlElement row, XmlElement lastCell,
-      int columnIndex, int rowIndex, dynamic value,
-      {int colorId: -1}) {
+  static XmlElement _replaceCell(
+    XmlElement row,
+    XmlElement lastCell,
+    int columnIndex,
+    int rowIndex,
+    dynamic value,
+  ) {
     var index = lastCell == null ? 0 : row.children.indexOf(lastCell);
-    var cell = _createCell(columnIndex, rowIndex, value, colorId: colorId);
+    var cell = _createCell(columnIndex, rowIndex, value);
     row.children
       ..removeAt(index)
       ..insert(index, cell);
@@ -382,8 +368,7 @@ class XlsxDecoder extends ExcelIt {
   }
 
   // TODO Manage value's type
-  static XmlElement _createCell(int columnIndex, int rowIndex, dynamic value,
-      {int colorId: -1}) {
+  static XmlElement _createCell(int columnIndex, int rowIndex, dynamic value) {
     var attributes = <XmlAttribute>[
       XmlAttribute(
           XmlName('r'), '${numericToLetters(columnIndex + 1)}${rowIndex + 1}'),

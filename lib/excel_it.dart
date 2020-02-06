@@ -2,6 +2,7 @@ library excel_it;
 
 import 'dart:convert';
 import 'dart:typed_data';
+import 'dart:ui';
 
 import 'package:archive/archive.dart';
 import 'package:xml/xml.dart';

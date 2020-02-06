@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/widgets.dart';
 import 'package:path/path.dart';
 import 'package:excel_it/excel_it.dart';
 
@@ -50,7 +51,7 @@ void main(List<String> args) {
   var sheet = 'MySheetName';
 
   decoder
-    ..updateCell(sheet, 0, 0, "Font RED")
+    ..updateCell(sheet, 0, 0, "Font RED", color: const Color.fromARGB(0xFF, 0x42, 0xA5, 0xF5))
     ..updateCell(sheet, 2, 0, "Font BLUE")
     ..updateCell(sheet, 0, 1, "Font GREEN")
     ..updateCell(sheet, 4, 4, "Font Orange");
