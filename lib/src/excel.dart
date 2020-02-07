@@ -204,7 +204,7 @@ abstract class ExcelIt {
     }
   }
 
-  /// Sets the color index from [xl/styles.xml] into their desired sheets cell into [xl/sheet_.xml]
+  /// Sets the color index from [xl/styles.xml] into their desired sheets cell into [xl/worksheets/sheet_.xml]
   _setColors() {
     /*  List<String> overAllColor = new List<String>();
 
