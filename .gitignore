@@ -5,6 +5,8 @@
 *.swp
 .DS_Store
 .DS_Store?
+<<<<<<< HEAD
+=======
 .atom/
 .buildlog/
 .history
@@ -15,6 +17,7 @@
 *.ipr
 *.iws
 .idea/
+>>>>>>> 569967edd47d4321e8fcf5c633c31062136ce5d2
 
 # The .vscode folder contains launch configuration and tasks you configure in
 # VS Code which you may wish to be included in version control, so this line
