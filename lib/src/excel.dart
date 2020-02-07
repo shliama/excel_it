@@ -62,12 +62,17 @@ String numericToLetters(int number) {
 abstract class ExcelIt {
   bool _update;
   Archive _archive;
+  String _sharedStringsTarget;
   Map<String, XmlNode> _sheets;
   Map<String, XmlDocument> _xmlFiles;
   Map<String, ArchiveFile> _archiveFiles;
   Map<String, String> _worksheetTargets;
-  Map<String, Map<String, List<String>>> _fontColorMap;
-  List<String> _sharedStrings, _rId, _fontColorHex, _backgroundColorHex;
+  Map<String, Map<String, List<String>>> _colorMap;
+  List<String> _sharedStrings,
+      _rId,
+      _fontColorHex,
+      _foregroundColorHex,
+      _backgroundColorHex;
   List<int> _numFormats;
 
   Map<String, SpreadsheetTable> _tables;
@@ -201,30 +206,63 @@ abstract class ExcelIt {
         else
           _numFormats.add(0);
       });
+
+      document.findAllElements('font').forEach((font) {
+        font.findElements('color').forEach((fontColor) {
+          String color = fontColor.getAttribute('rgb');
+          if (color != null && !_fontColorHex.contains(color))
+            _fontColorHex.add(color);
+        });
+      });
+
+      document.findAllElements('font').forEach((font) {
+        font.findElements('color').forEach((fontColor) {
+          String color = fontColor.getAttribute('rgb');
+          if (color != null && !_fontColorHex.contains(color))
+            _fontColorHex.add(color);
+        });
+      });
     }
   }
 
-  /// Sets the color index from [xl/styles.xml] into their desired sheets cell into [xl/worksheets/sheet_.xml]
+  /// Sets the color index from [xl/styles.xml] into their desired sheets cell into [xl/worksheets/sheet?.xml]
   _setColors() {
-    /*  List<String> overAllColor = new List<String>();
+    List<String> overFontAllColor = new List<String>(),
+        overForegroundAllColor = new List<String>(),
+        overBackgroundAllColor = new List<String>();
 
-    _fontColorMap.forEach((key, innerMap) {
+    _colorMap.forEach((key, innerMap) {
       innerMap.forEach((keyIn, color) {
-        if (color == "FF000000")
-          innerMap.remove(keyIn);
-        else if (!overAllColor.contains(color)) overAllColor.add(color);
+        if (color[0] == "FF000000") color[0] = null;
+
+        if (!overFontAllColor.contains(color[0]))
+          overFontAllColor.add(color[0]);
+
+        if (color[1] != null && !overForegroundAllColor.contains(color[1]))
+          overForegroundAllColor.add(color[1]);
+
+        if (color[2] != null && !overBackgroundAllColor.contains(color[2]))
+          overBackgroundAllColor.add(color[2]);
       });
     });
 
-    _colorHex.removeWhere((k) => !overAllColor.contains(k));
+    _fontColorHex.removeWhere((k) => !overFontAllColor.contains(k));
+    _foregroundColorHex.removeWhere((k) => !overForegroundAllColor.contains(k));
+    _backgroundColorHex.removeWhere((k) => !overBackgroundAllColor.contains(k));
 
     XmlElement fonts =
         _xmlFiles["xl/styles.xml"].findAllElements('fonts').first;
-    fonts.getAttributeNode("count").value = "${_colorHex.length + 1}";
+    fonts.getAttributeNode("count").value = "${_fontColorHex.length + 1}";
 
-    for (int i = 1; i < fonts.children.length; i++) fonts.children.removeAt(i);
+    fonts.children.clear();
+    fonts.children.add(
+      XmlElement(XmlName("font"), [], [
+        XmlElement(
+            XmlName("color"), [XmlAttribute(XmlName("rgb"), "FF000000")], [])
+      ]),
+    );
 
-    _colorHex.forEach((colorValue) => fonts.children.add(
+    /*_colorHex.forEach((colorValue) => fonts.children.add(
           XmlElement(XmlName("font"), [], [
             XmlElement(XmlName("color"),
                 [XmlAttribute(XmlName("rgb"), colorValue)], [])
@@ -254,6 +292,48 @@ abstract class ExcelIt {
           }
         });
     }); */
+  }
+
+  _setSharedStrings() {
+    String count = _sharedStrings.length.toString();
+    List uniqueList = _sharedStrings.toSet().toList();
+    String uniqueCount = uniqueList.length.toString();
+
+    XmlElement shareString =
+        _xmlFiles["xl/$_sharedStringsTarget"].findAllElements("sst").first;
+
+    if (shareString.getAttributeNode("count") == null)
+      shareString.attributes.add(XmlAttribute(XmlName("count"), count));
+    else
+      shareString.getAttributeNode("count").value = count;
+
+    if (shareString.getAttributeNode("uniqueCount") == null)
+      shareString.attributes
+          .add(XmlAttribute(XmlName("uniqueCount"), uniqueCount));
+    else
+      shareString.getAttributeNode("uniqueCount").value = uniqueCount;
+
+    shareString.children.clear();
+
+    _sharedStrings.forEach((string) {
+      shareString.children.add(XmlElement(XmlName("si"), [], [
+        XmlElement(XmlName("t"), [], [XmlText(string)])
+      ]));
+    });
+
+    _tables.forEach((sheet, table) {
+      for (int rowIndex = 0; rowIndex < table.rows.length; rowIndex++) {
+        for (int columnIndex = 0;
+            columnIndex < table.rows[rowIndex].length;
+            columnIndex++) {
+          if (table.rows[rowIndex][columnIndex] != null) {
+            var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
+            _updateCell(sheet, foundRow, columnIndex, rowIndex,
+                table.rows[rowIndex][columnIndex]);
+          }
+        }
+      }
+    });
   }
 
   _extractColors() {
@@ -313,8 +393,12 @@ abstract class ExcelIt {
 
   /// Remove column in [sheet] at position [columnIndex]
   void removeColumn(String sheet, int columnIndex) {
-    _checkSheetArguments(sheet);
-    if (columnIndex < 0 || columnIndex >= _tables[sheet]._maxCols)
+    if (!_update)
+      throw ArgumentError("'update' should be set to 'true' on constructor");
+    if (!_sheets.containsKey(sheet) || columnIndex >= _tables[sheet]._maxCols)
+      return;
+
+    if (columnIndex < 0)
       throw RangeError.range(columnIndex, 0, _tables[sheet]._maxCols - 1);
 
     var table = _tables[sheet];
@@ -325,7 +409,7 @@ abstract class ExcelIt {
   /// Insert row in [sheet] at position [rowIndex]
   void _insertRow(String sheet, int rowIndex) {
     _checkSheetArguments(sheet);
-    if (rowIndex < 0 /* || rowIndex > _tables[sheet]._maxRows */)
+    if (rowIndex < 0)
       throw RangeError.range(rowIndex, 0, _tables[sheet]._maxRows);
 
     var table = _tables[sheet];
@@ -343,8 +427,11 @@ abstract class ExcelIt {
 
   /// Remove row in [sheet] at position [rowIndex]
   void removeRow(String sheet, int rowIndex) {
-    _checkSheetArguments(sheet);
-    if (rowIndex < 0 || rowIndex >= _tables[sheet]._maxRows)
+    if (!_update)
+      throw ArgumentError("'update' should be set to 'true' on constructor");
+    if (!_sheets.containsKey(sheet) || rowIndex >= _tables[sheet]._maxRows)
+      return;
+    if (rowIndex < 0)
       throw RangeError.range(rowIndex, 0, _tables[sheet]._maxRows - 1);
 
     var table = _tables[sheet];
@@ -355,7 +442,9 @@ abstract class ExcelIt {
   /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
   /// [fontColorHex] or [backgroundColorHex] as example [#FF0000]
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {String fontColorHex, String backgroundColorHex}) {
+      {String fontColorHex,
+      String foregroundColorHex,
+      String backgroundColorHex}) {
     _checkSheetArguments(sheet);
 
     if (columnIndex >= _tables[sheet]._maxCols)
@@ -364,13 +453,16 @@ abstract class ExcelIt {
     if (rowIndex >= _tables[sheet]._maxRows) _insertRow(sheet, rowIndex);
 
     _tables[sheet].rows[rowIndex][columnIndex] = value.toString();
+    _sharedStrings.add(value.toString());
   }
 
   /// Encode bytes after update
   List<int> encode() {
-    _setColors();
     if (!_update)
       throw ArgumentError("'update' should be set to 'true' on constructor");
+
+    //_setColors();
+    _setSharedStrings();
 
     for (var xmlFile in _xmlFiles.keys) {
       var xml = _xmlFiles[xmlFile].toString();
@@ -596,6 +688,113 @@ abstract class ExcelIt {
         XmlElement(XmlName('drawing'),
             <XmlAttribute>[XmlAttribute(XmlName('r:id'), 'rId1')])
       ];
+
+  XmlElement _findRowByIndex(XmlElement table, int rowIndex) {
+    XmlElement row;
+    var rows = _findRows(table);
+
+    var currentIndex = 0;
+    for (var currentRow in rows) {
+      currentIndex = _getRowNumber(currentRow) - 1;
+      if (currentIndex >= rowIndex) {
+        row = currentRow;
+        break;
+      }
+    }
+
+    // Create row if required
+    if (row == null || currentIndex != rowIndex) {
+      row = __insertRow(table, row, rowIndex);
+    }
+
+    return row;
+  }
+
+  XmlElement _updateCell(String sheet, XmlElement node, int columnIndex,
+      int rowIndex, dynamic value) {
+    XmlElement cell;
+    var cells = _findCells(node);
+
+    var currentIndex = 0; // cells could be empty
+    for (var currentCell in cells) {
+      currentIndex = _getCellNumber(currentCell) - 1;
+      if (currentIndex >= columnIndex) {
+        cell = currentCell;
+        break;
+      }
+    }
+
+    if (cell == null || currentIndex != columnIndex) {
+      cell = _insertCell(sheet, node, cell, columnIndex, rowIndex, value);
+    } else {
+      cell = _replaceCell(sheet, node, cell, columnIndex, rowIndex, value);
+    }
+
+    return cell;
+  }
+
+  XmlElement _createRow(int rowIndex) {
+    var attributes = <XmlAttribute>[
+      XmlAttribute(XmlName('r'), (rowIndex + 1).toString()),
+    ];
+    return XmlElement(XmlName('row'), attributes, []);
+  }
+
+  XmlElement __insertRow(XmlElement table, XmlElement lastRow, int rowIndex) {
+    var row = _createRow(rowIndex);
+    if (lastRow == null) {
+      table.children.add(row);
+    } else {
+      var index = table.children.indexOf(lastRow);
+      table.children.insert(index, row);
+    }
+    return row;
+  }
+
+  XmlElement _insertCell(String sheet, XmlElement row, XmlElement lastCell,
+      int columnIndex, int rowIndex, dynamic value) {
+    var cell = _createCell(sheet, columnIndex, rowIndex, value);
+    if (lastCell == null) {
+      row.children.add(cell);
+    } else {
+      var index = row.children.indexOf(lastCell);
+      row.children.insert(index, cell);
+    }
+    return cell;
+  }
+
+  XmlElement _replaceCell(String sheet, XmlElement row, XmlElement lastCell,
+      int columnIndex, int rowIndex, dynamic value) {
+    var index = lastCell == null ? 0 : row.children.indexOf(lastCell);
+    var cell = _createCell(sheet, columnIndex, rowIndex, value);
+    row.children
+      ..removeAt(index)
+      ..insert(index, cell);
+    return cell;
+  }
+
+  // TODO Manage value's type
+  XmlElement _createCell(
+      String sheet, int columnIndex, int rowIndex, dynamic value) {
+    if (!_sharedStrings.contains(value)) _sharedStrings.add(value);
+    var attributes = <XmlAttribute>[
+      XmlAttribute(
+          XmlName('r'), '${numericToLetters(columnIndex + 1)}${rowIndex + 1}'),
+      XmlAttribute(XmlName('t'), 's'),
+    ];
+    /* if (colorId != -1)
+      attributes.insert(
+        1,
+        XmlAttribute(XmlName('s'), '$colorId'),
+      ); */
+    var children = value == null
+        ? <XmlElement>[]
+        : <XmlElement>[
+            XmlElement(XmlName('v'), [],
+                [XmlText(_sharedStrings.indexOf(value).toString())]),
+          ];
+    return XmlElement(XmlName('c'), attributes, children);
+  }
 }
 
 /// Table of a spreadsheet file
@@ -617,3 +816,18 @@ class SpreadsheetTable {
   /// Get max cols
   int get maxCols => _maxCols;
 }
+
+/* void _setRowNumber(XmlElement row, int index) =>
+      row.getAttributeNode('r').value = index.toString();
+
+  void _setCellColNumber(XmlElement cell, int colIndex) {
+    var attr = cell.getAttributeNode('r');
+    var coords = cellCoordsFromCellId(attr.value);
+    attr.value = '${numericToLetters(colIndex)}${coords[1]}';
+  }
+
+  void _setCellRowNumber(XmlElement cell, int rowIndex) {
+    var attr = cell.getAttributeNode('r');
+    var coords = cellCoordsFromCellId(attr.value);
+    attr.value = '${numericToLetters(coords[0])}${rowIndex}';
+  } */

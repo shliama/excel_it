@@ -46,12 +46,11 @@ void main(List<String> args) {
    * }
    */
 
-  // if [MySheetName] does not exist then it will be automatically created.
-  var sheet = 'MySheetName';
+  // if [Sheet2] does not exist then it will be automatically created.
+  var sheet = 'Sheet2';
 
   decoder
-    ..updateCell(sheet, 0, 0, "Font RED",
-        fontColorHex: "FFFF9900")
+    ..updateCell(sheet, 0, 0, "Font RED")
     ..updateCell(sheet, 2, 0, "Font BLUE")
     ..updateCell(sheet, 0, 1, "Font GREEN")
     ..updateCell(sheet, 4, 4, "Font Orange");

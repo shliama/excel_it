@@ -68,7 +68,6 @@ class XlsxDecoder extends ExcelIt {
       "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
   String get extension => ".xlsx";
 
-  String _sharedStringsTarget;
   List<String> _rId;
 
   XlsxDecoder(Archive archive, {bool update = false}) {
@@ -80,8 +79,9 @@ class XlsxDecoder extends ExcelIt {
       _xmlFiles = <String, XmlDocument>{};
     }
     _worksheetTargets = Map<String, String>();
-    _fontColorMap = Map<String, Map<String, List<String>>>();
+    _colorMap = Map<String, Map<String, List<String>>>();
     _fontColorHex = List<String>();
+    _foregroundColorHex = List<String>();
     _backgroundColorHex = List<String>();
     _tables = Map<String, SpreadsheetTable>();
     _sharedStrings = List<String>();
@@ -107,106 +107,46 @@ class XlsxDecoder extends ExcelIt {
     }
   }
 
-  void _insertColumn(String sheet, int columnIndex) {
-    super._insertColumn(sheet, columnIndex);
-
-    for (var row in _findRows(_sheets[sheet])) {
-      XmlElement cell;
-      var cells = _findCells(row);
-
-      var currentIndex = 0; // cells could be empty
-      for (var currentCell in cells) {
-        currentIndex = _getCellNumber(currentCell) - 1;
-        if (currentIndex >= columnIndex) {
-          cell = currentCell;
-          break;
-        }
-      }
-
-      if (cell != null) {
-        cells
-            .skipWhile((c) => c != cell)
-            .forEach((c) => _setCellColNumber(c, _getCellNumber(c) + 1));
-      }
-      // Nothing to do if cell == null
-    }
-  }
-
-  void removeColumn(String sheet, int columnIndex) {
-    super.removeColumn(sheet, columnIndex);
-
-    for (var row in _findRows(_sheets[sheet])) {
-      XmlElement cell;
-      var cells = _findCells(row);
-
-      var currentIndex = 0; // cells could be empty
-      for (var currentCell in cells) {
-        currentIndex = _getCellNumber(currentCell) - 1;
-        if (currentIndex >= columnIndex) {
-          cell = currentCell;
-          break;
-        }
-      }
-
-      if (cell != null) {
-        cells
-            .skipWhile((c) => c != cell)
-            .forEach((c) => _setCellColNumber(c, _getCellNumber(c) - 1));
-        cell.parent.children.remove(cell);
-      }
-    }
-  }
-
-  void _insertRow(String sheet, int rowIndex) {
-    super._insertRow(sheet, rowIndex);
-
-    var parent = _sheets[sheet];
-    if (rowIndex < _tables[sheet]._maxRows - 1) {
-      var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
-      __insertRow(parent, foundRow, rowIndex);
-      parent.children.skipWhile((row) => row != foundRow).forEach((row) {
-        var rIndex = _getRowNumber(row) + 1;
-        _setRowNumber(row, rIndex);
-        _findCells(row).forEach((cell) {
-          _setCellRowNumber(cell, rIndex);
-        });
-      });
-    } else {
-      __insertRow(parent, null, rowIndex);
-    }
-  }
-
-  void removeRow(String sheet, int rowIndex) {
-    super.removeRow(sheet, rowIndex);
-
-    var parent = _sheets[sheet];
-    var foundRow = _findRowByIndex(parent, rowIndex);
-    parent.children.skipWhile((row) => row != foundRow).forEach((row) {
-      var rIndex = _getRowNumber(row) - 1;
-      _setRowNumber(row, rIndex);
-      _findCells(row).forEach((cell) => _setCellRowNumber(cell, rIndex));
-    });
-    parent.children.remove(foundRow);
-  }
-
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {String fontColorHex, String backgroundColorHex}) {
+      {String fontColorHex,
+      String foregroundColorHex,
+      String backgroundColorHex}) {
     super.updateCell(sheet, columnIndex, rowIndex, value);
-    if (fontColorHex == null) {
-      print("Colour provided is null");
-    } else {
-      //print(fontColor.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF').toString());
-      /* String hex =
-          color; //.value.toRadixString(16).replaceAll(new RegExp(r'#'), 'FF');
 
-      if (!_colorHex.contains(hex)) _colorHex.add(hex);
+    String rC = '${numericToLetters(columnIndex + 1)}${rowIndex + 1}';
 
-      _fontColorMap[sheet] = new Map<String, String>.from(
-          {'${numericToLetters(columnIndex + 1)}${rowIndex + 1}': hex}); */
+    if (fontColorHex != null) {
+      _addColor(sheet, fontColorHex, _fontColorHex, rC, 0);
     }
 
-    var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
-    _updateCell(foundRow, columnIndex, rowIndex, value);
+    if (backgroundColorHex != null) {
+      _addColor(sheet, foregroundColorHex, _foregroundColorHex, rC, 1);
+    }
+
+    if (backgroundColorHex != null) {
+      _addColor(sheet, backgroundColorHex, _backgroundColorHex, rC, 2);
+    }
+
+    /* var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
+    _updateCell(foundRow, columnIndex, rowIndex, value); */
+  }
+
+  _addColor(
+      String sheet, String color, List<String> list, String rowCol, int index) {
+    if (color.length != 7)
+      throw ArgumentError(
+          "\nIn-appropriate Color provided. Use colorHex as example of: #FF0000\n");
+
+    String hex = color.replaceAll(new RegExp(r'#'), 'FF');
+    if (!list.contains(hex)) list.add(hex);
+
+    if (_colorMap.containsKey(sheet) && _colorMap[sheet].containsKey(rowCol))
+      _colorMap[sheet][rowCol][index] = hex;
+    else {
+      List l = new List<String>(2);
+      l[index] = hex;
+      _colorMap[sheet] = new Map<String, List<String>>.from({rowCol: l});
+    }
   }
 
   _parseRelations() {
@@ -238,6 +178,7 @@ class XlsxDecoder extends ExcelIt {
     if (sharedStrings != null) {
       sharedStrings.decompress();
       var document = parse(utf8.decode(sharedStrings.content));
+      if (_xmlFiles != null) _xmlFiles["xl/$_sharedStringsTarget"] = document;
       document.findAllElements('si').forEach((node) {
         _parseSharedString(node);
       });
@@ -261,126 +202,87 @@ class XlsxDecoder extends ExcelIt {
       _parseTable(node);
     });
   }
-
-  static void _setRowNumber(XmlElement row, int index) =>
-      row.getAttributeNode('r').value = index.toString();
-
-  static void _setCellColNumber(XmlElement cell, int colIndex) {
-    var attr = cell.getAttributeNode('r');
-    var coords = cellCoordsFromCellId(attr.value);
-    attr.value = '${numericToLetters(colIndex)}${coords[1]}';
-  }
-
-  static void _setCellRowNumber(XmlElement cell, int rowIndex) {
-    var attr = cell.getAttributeNode('r');
-    var coords = cellCoordsFromCellId(attr.value);
-    attr.value = '${numericToLetters(coords[0])}${rowIndex}';
-  }
-
-  XmlElement _findRowByIndex(XmlElement table, int rowIndex) {
-    XmlElement row;
-    var rows = _findRows(table);
-
-    var currentIndex = 0;
-    for (var currentRow in rows) {
-      currentIndex = _getRowNumber(currentRow) - 1;
-      if (currentIndex >= rowIndex) {
-        row = currentRow;
-        break;
-      }
-    }
-
-    // Create row if required
-    if (row == null || currentIndex != rowIndex) {
-      row = __insertRow(table, row, rowIndex);
-    }
-
-    return row;
-  }
-
-  XmlElement _updateCell(
-      XmlElement node, int columnIndex, int rowIndex, dynamic value) {
-    XmlElement cell;
-    var cells = _findCells(node);
-
-    var currentIndex = 0; // cells could be empty
-    for (var currentCell in cells) {
-      currentIndex = _getCellNumber(currentCell) - 1;
-      if (currentIndex >= columnIndex) {
-        cell = currentCell;
-        break;
-      }
-    }
-
-    if (cell == null || currentIndex != columnIndex) {
-      cell = _insertCell(node, cell, columnIndex, rowIndex, value);
-    } else {
-      cell = _replaceCell(node, cell, columnIndex, rowIndex, value);
-    }
-
-    return cell;
-  }
-
-  static XmlElement _createRow(int rowIndex) {
-    var attributes = <XmlAttribute>[
-      XmlAttribute(XmlName('r'), (rowIndex + 1).toString()),
-    ];
-    return XmlElement(XmlName('row'), attributes, []);
-  }
-
-  static XmlElement __insertRow(
-      XmlElement table, XmlElement lastRow, int rowIndex) {
-    var row = _createRow(rowIndex);
-    if (lastRow == null) {
-      table.children.add(row);
-    } else {
-      var index = table.children.indexOf(lastRow);
-      table.children.insert(index, row);
-    }
-    return row;
-  }
-
-  static XmlElement _insertCell(XmlElement row, XmlElement lastCell,
-      int columnIndex, int rowIndex, dynamic value) {
-    var cell = _createCell(columnIndex, rowIndex, value);
-    if (lastCell == null) {
-      row.children.add(cell);
-    } else {
-      var index = row.children.indexOf(lastCell);
-      row.children.insert(index, cell);
-    }
-    return cell;
-  }
-
-  static XmlElement _replaceCell(XmlElement row, XmlElement lastCell,
-      int columnIndex, int rowIndex, dynamic value) {
-    var index = lastCell == null ? 0 : row.children.indexOf(lastCell);
-    var cell = _createCell(columnIndex, rowIndex, value);
-    row.children
-      ..removeAt(index)
-      ..insert(index, cell);
-    return cell;
-  }
-
-  // TODO Manage value's type
-  static XmlElement _createCell(int columnIndex, int rowIndex, dynamic value) {
-    var attributes = <XmlAttribute>[
-      XmlAttribute(
-          XmlName('r'), '${numericToLetters(columnIndex + 1)}${rowIndex + 1}'),
-      XmlAttribute(XmlName('t'), 'inlineStr'),
-    ];
-    /* if (colorId != -1)
-      attributes.insert(
-        1,
-        XmlAttribute(XmlName('s'), '$colorId'),
-      ); */
-    var children = value == null
-        ? <XmlElement>[]
-        : <XmlElement>[
-            XmlElement(XmlName('is'), [], [
-              XmlElement(XmlName('t'), [], [XmlText(value.toString())])
-            ]),
-          ];
-    return XmlElement(XmlName('c'), attributes, children);
-  }
 }
+
+/* 
+  void _insertColumn(String sheet, int columnIndex) {
+    super._insertColumn(sheet, columnIndex);
+
+    for (var row in _findRows(_sheets[sheet])) {
+      XmlElement cell;
+      var cells = _findCells(row);
+
+      var currentIndex = 0; // cells could be empty
+      for (var currentCell in cells) {
+        currentIndex = _getCellNumber(currentCell) - 1;
+        if (currentIndex >= columnIndex) {
+          cell = currentCell;
+          break;
+        }
+      }
+
+      if (cell != null) {
+        cells
+            .skipWhile((c) => c != cell)
+            .forEach((c) => _setCellColNumber(c, _getCellNumber(c) + 1));
+      }
+      // Nothing to do if cell == null
+    }
+  } */
+
+/* void removeColumn(String sheet, int columnIndex) {
+    super.removeColumn(sheet, columnIndex);
+
+    for (var row in _findRows(_sheets[sheet])) {
+      XmlElement cell;
+      var cells = _findCells(row);
+
+      var currentIndex = 0; // cells could be empty
+      for (var currentCell in cells) {
+        currentIndex = _getCellNumber(currentCell) - 1;
+        if (currentIndex >= columnIndex) {
+          cell = currentCell;
+          break;
+        }
+      }
+
+      if (cell != null) {
+        cells
+            .skipWhile((c) => c != cell)
+            .forEach((c) => _setCellColNumber(c, _getCellNumber(c) - 1));
+        cell.parent.children.remove(cell);
+      }
+    }
+  } */
+/* 
+  void _insertRow(String sheet, int rowIndex) {
+    super._insertRow(sheet, rowIndex);
+
+    var parent = _sheets[sheet];
+    if (rowIndex < _tables[sheet]._maxRows - 1) {
+      var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
+      __insertRow(parent, foundRow, rowIndex);
+      parent.children.skipWhile((row) => row != foundRow).forEach((row) {
+        var rIndex = _getRowNumber(row) + 1;
+        _setRowNumber(row, rIndex);
+        _findCells(row).forEach((cell) {
+          _setCellRowNumber(cell, rIndex);
+        });
+      });
+    } else {
+      __insertRow(parent, null, rowIndex);
+    }
+  }
+ */
+/* void removeRow(String sheet, int rowIndex) {
+    super.removeRow(sheet, rowIndex);
+
+    var parent = _sheets[sheet];
+    var foundRow = _findRowByIndex(parent, rowIndex);
+    parent.children.skipWhile((row) => row != foundRow).forEach((row) {
+      var rIndex = _getRowNumber(row) - 1;
+      _setRowNumber(row, rIndex);
+      _findCells(row).forEach((cell) => _setCellRowNumber(cell, rIndex));
+    });
+    parent.children.remove(foundRow);
+  } */
