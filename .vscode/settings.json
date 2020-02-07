@@ -1,6 +1,0 @@
-{
-    "editor.wordWrap": "on",
-    "files.exclude": {
-        "**/.DS_Store": false
-    }
-}
