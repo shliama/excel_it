@@ -9,17 +9,14 @@ const String _relationshipsSharedStrings =
 
 /// Convert a character based column
 int lettersToNumeric(String letters) {
-  var sum = 0;
-  var mul = 1;
-  var n;
+  var sum = 0, mul = 1, n;
   for (var index = letters.length - 1; index >= 0; index--) {
     var c = letters[index].codeUnitAt(0);
     n = 1;
-    if (65 <= c && c <= 90) {
+    if (65 <= c && c <= 90)
       n += c - 65;
-    } else if (97 <= c && c <= 122) {
-      n += c - 97;
-    }
+    else if (97 <= c && c <= 122) n += c - 97;
+
     sum += n * mul;
     mul = mul * 26;
   }
@@ -27,11 +24,10 @@ int lettersToNumeric(String letters) {
 }
 
 int _letterOnly(int rune) {
-  if (65 <= rune && rune <= 90) {
+  if (65 <= rune && rune <= 90)
     return rune;
-  } else if (97 <= rune && rune <= 122) {
-    return rune - 32;
-  }
+  else if (97 <= rune && rune <= 122) return rune - 32;
+
   return 0;
 }
 
@@ -44,10 +40,8 @@ int _letterOnly(int rune) {
 //}
 
 String _twoDigits(int n) {
-  if (n >= 10) {
-    return "${n}";
-  }
-  return "0${n}";
+  if (n > 9) return "$n";
+  return "0$n";
 }
 
 /// Returns the coordinates from a cell name.
@@ -57,9 +51,8 @@ List cellCoordsFromCellId(String cellId) {
   var lettersPart =
       utf8.decode(letters.where((rune) => rune > 0).toList(growable: false));
   var numericsPart = cellId.substring(lettersPart.length);
-  var x = lettersToNumeric(lettersPart);
-  var y = int.parse(numericsPart);
-  return [x, y];
+
+  return [lettersToNumeric(lettersPart), int.parse(numericsPart)]; // [x , y]
 }
 
 /// Read and parse XSLX spreadsheet
@@ -78,15 +71,16 @@ class XlsxDecoder extends ExcelIt {
       _sheets = <String, XmlNode>{};
       _xmlFiles = <String, XmlDocument>{};
     }
-    _worksheetTargets = Map<String, String>();
-    _colorMap = Map<String, Map<String, List<String>>>();
-    _fontColorHex = List<String>();
-    _foregroundColorHex = List<String>();
-    _backgroundColorHex = List<String>();
-    _tables = Map<String, SpreadsheetTable>();
-    _sharedStrings = List<String>();
+    _worksheetTargets = new Map<String, String>();
+    _colorMap = new Map<String, Map<String, List<String>>>();
+    _fontColorHex = new List<String>();
+    _patternFill = new Map<List<String>, int>();
+    _cellXfs = new Map<String, List<int>>();
+    _tables = new Map<String, SpreadsheetTable>();
+    _sharedStrings = new List<String>();
     _rId = new List<String>();
-    _numFormats = List<int>();
+    _numFormats = new List<int>();
+    _putContentXml();
     _parseRelations();
     _parseStyles(_stylesTarget);
     _parseSharedStrings();
@@ -102,9 +96,8 @@ class XlsxDecoder extends ExcelIt {
         buffer.writeln(document.toXmlString(pretty: true));
       });
       return buffer.toString();
-    } else {
+    } else
       return _sheets[sheet].toXmlString(pretty: true);
-    }
   }
 
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
@@ -116,37 +109,47 @@ class XlsxDecoder extends ExcelIt {
     String rC = '${numericToLetters(columnIndex + 1)}${rowIndex + 1}';
 
     if (fontColorHex != null) {
-      _addColor(sheet, fontColorHex, _fontColorHex, rC, 0);
+      _addColor(sheet, fontColorHex, rC, 0);
+    }
+
+    if (foregroundColorHex != null) {
+      _addColor(sheet, foregroundColorHex, rC, 1);
     }
 
     if (backgroundColorHex != null) {
-      _addColor(sheet, foregroundColorHex, _foregroundColorHex, rC, 1);
+      _addColor(sheet, backgroundColorHex, rC, 2);
     }
-
-    if (backgroundColorHex != null) {
-      _addColor(sheet, backgroundColorHex, _backgroundColorHex, rC, 2);
-    }
-
-    /* var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
-    _updateCell(foundRow, columnIndex, rowIndex, value); */
   }
 
-  _addColor(
-      String sheet, String color, List<String> list, String rowCol, int index) {
-    if (color.length != 7)
+  _addColor(String sheet, String color, String rowCol, int index) {
+    if (color != null && color.length != 7)
       throw ArgumentError(
           "\nIn-appropriate Color provided. Use colorHex as example of: #FF0000\n");
 
     String hex = color.replaceAll(new RegExp(r'#'), 'FF');
-    if (!list.contains(hex)) list.add(hex);
 
-    if (_colorMap.containsKey(sheet) && _colorMap[sheet].containsKey(rowCol))
-      _colorMap[sheet][rowCol][index] = hex;
-    else {
-      List l = new List<String>(2);
+    if (_colorMap.containsKey(sheet)) {
+      if (_colorMap[sheet].containsKey(rowCol))
+        _colorMap[sheet][rowCol][index] = hex;
+      else {
+        List l = new List<String>(3);
+        l[index] = hex;
+        Map temp = new Map<String, List<String>>.from(_colorMap[sheet]);
+        temp[rowCol] = l;
+        _colorMap[sheet] = new Map<String, List<String>>.from(temp);
+      }
+    } else {
+      List l = new List<String>(3);
       l[index] = hex;
       _colorMap[sheet] = new Map<String, List<String>>.from({rowCol: l});
     }
+  }
+
+  _putContentXml() {
+    var file = _archive.findFile("[Content_Types].xml");
+    file.decompress();
+    if (_xmlFiles != null)
+      _xmlFiles["[Content_Types].xml"] = parse(utf8.decode(file.content));
   }
 
   _parseRelations() {
@@ -187,9 +190,7 @@ class XlsxDecoder extends ExcelIt {
 
   _parseSharedString(XmlElement node) {
     var list = List();
-    node.findAllElements('t').forEach((child) {
-      list.add(_parseValue(child));
-    });
+    node.findAllElements('t').forEach((child) => list.add(_parseValue(child)));
     _sharedStrings.add(list.join(''));
   }
 
@@ -198,9 +199,7 @@ class XlsxDecoder extends ExcelIt {
     workbook.decompress();
     var document = parse(utf8.decode(workbook.content));
     if (_xmlFiles != null) _xmlFiles["xl/workbook.xml"] = document;
-    document.findAllElements('sheet').forEach((node) {
-      _parseTable(node);
-    });
+    document.findAllElements('sheet').forEach((node) => _parseTable(node));
   }
 }
 

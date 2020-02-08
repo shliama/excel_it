@@ -62,21 +62,18 @@ String numericToLetters(int number) {
 abstract class ExcelIt {
   bool _update;
   Archive _archive;
-  String _sharedStringsTarget;
   Map<String, XmlNode> _sheets;
   Map<String, XmlDocument> _xmlFiles;
   Map<String, ArchiveFile> _archiveFiles;
   Map<String, String> _worksheetTargets;
   Map<String, Map<String, List<String>>> _colorMap;
-  List<String> _sharedStrings,
-      _rId,
-      _fontColorHex,
-      _foregroundColorHex,
-      _backgroundColorHex;
+  Map<List<String>, int> _patternFill;
+  Map<String, List<int>> _cellXfs;
+  List<String> _sharedStrings, _rId, _fontColorHex;
   List<int> _numFormats;
 
   Map<String, SpreadsheetTable> _tables;
-  String _stylesTarget;
+  String _stylesTarget, _sharedStringsTarget;
 
   /// Media type
   String get mediaType;
@@ -84,7 +81,7 @@ abstract class ExcelIt {
   /// Filename extension
   String get extension;
 
-  /// Tables contained in spreadshet file indexed by their names
+  /// Tables contained in spreadsheet file indexed by their names
   Map<String, SpreadsheetTable> get tables => _tables;
 
   ExcelIt();
@@ -168,11 +165,6 @@ abstract class ExcelIt {
     _archive.addFile(ArchiveFile(
         'xl/worksheets/sheet${sheetNumber + 1}.xml', content.length, content));
 
-    var file = _archive.findFile("[Content_Types].xml");
-    file.decompress();
-
-    _xmlFiles["[Content_Types].xml"] = parse(utf8.decode(file.content));
-
     _xmlFiles["[Content_Types].xml"]
         .findAllElements('Types')
         .first
@@ -214,61 +206,111 @@ abstract class ExcelIt {
             _fontColorHex.add(color);
         });
       });
-
-      document.findAllElements('font').forEach((font) {
-        font.findElements('color').forEach((fontColor) {
-          String color = fontColor.getAttribute('rgb');
-          if (color != null && !_fontColorHex.contains(color))
-            _fontColorHex.add(color);
-        });
-      });
     }
   }
 
-  /// Sets the color index from [xl/styles.xml] into their desired sheets cell into [xl/worksheets/sheet?.xml]
-  _setColors() {
-    List<String> overFontAllColor = new List<String>(),
-        overForegroundAllColor = new List<String>(),
-        overBackgroundAllColor = new List<String>();
-
+  /// Sets/Updates the Font Color in [xl/styles.xml] from the Cells of the sheets
+  _setFontColors() {
     _colorMap.forEach((key, innerMap) {
       innerMap.forEach((keyIn, color) {
         if (color[0] == "FF000000") color[0] = null;
 
-        if (!overFontAllColor.contains(color[0]))
-          overFontAllColor.add(color[0]);
+        color[1] ??= color[2];
+        color[2] ??= color[1];
 
-        if (color[1] != null && !overForegroundAllColor.contains(color[1]))
-          overForegroundAllColor.add(color[1]);
+        if (color[0] != null && !_fontColorHex.contains(color[0]))
+          _fontColorHex.add(color[0]);
 
-        if (color[2] != null && !overBackgroundAllColor.contains(color[2]))
-          overBackgroundAllColor.add(color[2]);
+        if (!_patternFill.containsKey([color[1], color[2]])) {
+          int index = _patternFill.length;
+          _patternFill[[color[1], color[2]]] =
+              color[1] == null && color[2] == null ? 0 : index + 1;
+        }
       });
     });
-
-    _fontColorHex.removeWhere((k) => !overFontAllColor.contains(k));
-    _foregroundColorHex.removeWhere((k) => !overForegroundAllColor.contains(k));
-    _backgroundColorHex.removeWhere((k) => !overBackgroundAllColor.contains(k));
 
     XmlElement fonts =
         _xmlFiles["xl/styles.xml"].findAllElements('fonts').first;
     fonts.getAttributeNode("count").value = "${_fontColorHex.length + 1}";
 
     fonts.children.clear();
-    fonts.children.add(
-      XmlElement(XmlName("font"), [], [
-        XmlElement(
-            XmlName("color"), [XmlAttribute(XmlName("rgb"), "FF000000")], [])
-      ]),
-    );
+    fonts.children.add(XmlElement(XmlName("font"), [], [
+      XmlElement(
+          XmlName("color"), [XmlAttribute(XmlName("rgb"), "FF000000")], [])
+    ]));
 
-    /*_colorHex.forEach((colorValue) => fonts.children.add(
-          XmlElement(XmlName("font"), [], [
-            XmlElement(XmlName("color"),
-                [XmlAttribute(XmlName("rgb"), colorValue)], [])
-          ]),
-        ));
+    _fontColorHex.forEach((colorValue) =>
+        fonts.children.add(XmlElement(XmlName("font"), [], [
+          XmlElement(
+              XmlName("color"), [XmlAttribute(XmlName("rgb"), colorValue)], [])
+        ])));
+  }
 
+  _setPatternFillColor() {
+    XmlElement fills =
+        _xmlFiles["xl/styles.xml"].findAllElements('fills').first;
+    fills.getAttributeNode("count").value = "${_patternFill.keys.length + 1}";
+
+    fills.children.clear();
+    fills.children.add(XmlElement(XmlName("fill"), [], [
+      XmlElement(XmlName("patternFill"),
+          [XmlAttribute(XmlName("patternType"), "none")], [])
+    ]));
+
+    _patternFill.forEach((key, index) {
+      if (key[0] != null || key[1] != null)
+        fills.children.add(XmlElement(XmlName("fill"), [], [
+          XmlElement(XmlName("patternFill"), [
+            XmlAttribute(XmlName("patternType"), "solid")
+          ], [
+            XmlElement(XmlName("fgColor"),
+                [XmlAttribute(XmlName("rgb"), key[0] ?? key[1])], []),
+            XmlElement(XmlName("bgColor"),
+                [XmlAttribute(XmlName("rgb"), key[1] ?? key[0])], [])
+          ])
+        ]));
+    });
+  }
+
+  _setCellXfs() {
+    _colorMap.forEach((key, innerMap) {
+      innerMap.forEach((keyIn, color) {
+        if (!_cellXfs.containsKey(color.toString()) &&
+            (color[0] != null || color[1] != null || color[2] != null)) {
+          int index2 = _cellXfs.length;
+          _cellXfs[color.toString()] = [
+            index2 + 1, // index of the xf body
+            color[0] == null
+                ? 0
+                : _fontColorHex.indexOf(color[0]) + 1, // index of fontColor
+            _patternFill[[color[1], color[2]]] // index of patternFill
+          ];
+        }
+      });
+    });
+
+    XmlElement celx =
+        _xmlFiles["xl/styles.xml"].findAllElements('cellXfs').first;
+    celx.getAttributeNode("count").value = "${_cellXfs.keys.length + 1}";
+
+    celx.children.clear();
+    celx.children.add(XmlElement(XmlName("xf"), [
+      XmlAttribute(XmlName("fillId"), "0"),
+      XmlAttribute(XmlName("fontId"), "0"),
+      XmlAttribute(XmlName("applyFill"), "1"),
+      XmlAttribute(XmlName("applyFont"), "1")
+    ], []));
+
+    _cellXfs.values.forEach((value) {
+      celx.children.add(XmlElement(XmlName("xf"), [
+        XmlAttribute(XmlName("fillId"), "${value[2] == 0 ? 0 : value[2]}"),
+        XmlAttribute(XmlName("fontId"), "${value[1] == 0 ? 0 : value[1]}"),
+        XmlAttribute(XmlName("applyFill"), "${value[2] == 0 ? 0 : 1}"),
+        XmlAttribute(XmlName("applyFont"), "${value[1] == 0 ? 0 : 1}")
+      ], []));
+    });
+
+/*
     _xmlFiles["xl/workbook.xml"].findAllElements('sheet').forEach((child) {
       String sheetFile =
               "xl/worksheets/sheet${int.parse(child.getAttributeNode("sheetId").value)}.xml",
@@ -320,7 +362,9 @@ abstract class ExcelIt {
         XmlElement(XmlName("t"), [], [XmlText(string)])
       ]));
     });
+  }
 
+  _updateSheetElements() {
     _tables.forEach((sheet, table) {
       for (int rowIndex = 0; rowIndex < table.rows.length; rowIndex++) {
         for (int columnIndex = 0;
@@ -365,7 +409,7 @@ abstract class ExcelIt {
   void _checkSheetArguments(String sheet) {
     if (!_update)
       throw ArgumentError("'update' should be set to 'true' on constructor");
-    if (_sheets.containsKey(sheet) == false) _createSheet(sheet);
+    if (!_sheets.containsKey(sheet)) _createSheet(sheet);
   }
 
   /// Insert column in [sheet] at position [columnIndex]
@@ -461,8 +505,11 @@ abstract class ExcelIt {
     if (!_update)
       throw ArgumentError("'update' should be set to 'true' on constructor");
 
-    //_setColors();
+    _setFontColors();
+    _setPatternFillColor();
     _setSharedStrings();
+    _setCellXfs();
+    _updateSheetElements();
 
     for (var xmlFile in _xmlFiles.keys) {
       var xml = _xmlFiles[xmlFile].toString();
@@ -669,21 +716,6 @@ abstract class ExcelIt {
   int _getRowNumber(XmlElement row) => int.parse(row.getAttribute('r'));
 
   Iterable<XmlNode> _getNodeValue() => <XmlElement>[
-        XmlElement(XmlName('sheetPr'), [], <XmlElement>[
-          XmlElement(XmlName('outlinePr'), <XmlAttribute>[
-            XmlAttribute(XmlName('summaryBelow'), '0'),
-            XmlAttribute(XmlName('summaryRight'), '0')
-          ])
-        ]),
-        XmlElement(XmlName('sheetViews'), <XmlAttribute>[], <XmlElement>[
-          XmlElement(XmlName('sheetView'),
-              <XmlAttribute>[XmlAttribute(XmlName('workbookViewId'), '0')])
-        ]),
-        XmlElement(XmlName('sheetFormatPr'), <XmlAttribute>[
-          XmlAttribute(XmlName('customHeight'), '1'),
-          XmlAttribute(XmlName('defaultColWidth'), '14.43'),
-          XmlAttribute(XmlName('defaultRowHeight'), '15.0')
-        ]),
         XmlElement(XmlName('sheetData')),
         XmlElement(XmlName('drawing'),
             <XmlAttribute>[XmlAttribute(XmlName('r:id'), 'rId1')])
@@ -773,20 +805,26 @@ abstract class ExcelIt {
     return cell;
   }
 
-  // TODO Manage value's type
+  // Manage value's type
   XmlElement _createCell(
       String sheet, int columnIndex, int rowIndex, dynamic value) {
     if (!_sharedStrings.contains(value)) _sharedStrings.add(value);
+    String rC = "${numericToLetters(columnIndex + 1)}${rowIndex + 1}";
     var attributes = <XmlAttribute>[
-      XmlAttribute(
-          XmlName('r'), '${numericToLetters(columnIndex + 1)}${rowIndex + 1}'),
+      XmlAttribute(XmlName('r'), rC),
       XmlAttribute(XmlName('t'), 's'),
     ];
-    /* if (colorId != -1)
+    print("\n\ncolorMap:\n" + _colorMap.toString());
+    print("\n\n_patternFill:\n" + _patternFill.toString());
+    print("\n\n_cellXFS:\n" + _cellXfs.toString());
+    if (_colorMap.containsKey(sheet) &&
+        _colorMap[sheet].containsKey(rC) &&
+        _cellXfs.containsKey(_colorMap[sheet][rC])) {
       attributes.insert(
         1,
-        XmlAttribute(XmlName('s'), '$colorId'),
-      ); */
+        XmlAttribute(XmlName('s'), '${_cellXfs[_colorMap[sheet][rC]][0]}'),
+      );
+    }
     var children = value == null
         ? <XmlElement>[]
         : <XmlElement>[
@@ -802,8 +840,7 @@ class SpreadsheetTable {
   final String name;
   SpreadsheetTable(this.name);
 
-  int _maxRows = 0;
-  int _maxCols = 0;
+  int _maxRows = 0, _maxCols = 0;
 
   List<List> _rows = List<List>();
 
@@ -831,3 +868,19 @@ class SpreadsheetTable {
     var coords = cellCoordsFromCellId(attr.value);
     attr.value = '${numericToLetters(coords[0])}${rowIndex}';
   } */
+
+/* XmlElement(XmlName('sheetPr'), [], <XmlElement>[
+          XmlElement(XmlName('outlinePr'), <XmlAttribute>[
+            XmlAttribute(XmlName('summaryBelow'), '0'),
+            XmlAttribute(XmlName('summaryRight'), '0')
+          ])
+        ]),
+        XmlElement(XmlName('sheetViews'), <XmlAttribute>[], <XmlElement>[
+          XmlElement(XmlName('sheetView'),
+              <XmlAttribute>[XmlAttribute(XmlName('workbookViewId'), '0')])
+        ]),
+        XmlElement(XmlName('sheetFormatPr'), <XmlAttribute>[
+          XmlAttribute(XmlName('customHeight'), '1'),
+          XmlAttribute(XmlName('defaultColWidth'), '14.43'),
+          XmlAttribute(XmlName('defaultRowHeight'), '15.0')
+        ]), */
