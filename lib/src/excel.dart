@@ -67,7 +67,7 @@ abstract class ExcelIt {
   Map<String, ArchiveFile> _archiveFiles;
   Map<String, String> _worksheetTargets;
   Map<String, Map<String, List<String>>> _colorMap;
-  Map<List<String>, int> _patternFill;
+  Map<String, List<String>> _patternFill;
   Map<String, List<int>> _cellXfs;
   List<String> _sharedStrings, _rId, _fontColorHex;
   List<int> _numFormats;
@@ -211,23 +211,23 @@ abstract class ExcelIt {
 
   /// Sets/Updates the Font Color in [xl/styles.xml] from the Cells of the sheets
   _setFontColors() {
-    _colorMap.forEach((key, innerMap) {
-      innerMap.forEach((keyIn, color) {
-        if (color[0] == "FF000000") color[0] = null;
+    _colorMap.forEach((key, innerMap) => innerMap.forEach((keyIn, color) {
+          if (color[0] != null &&
+              color[0] != "FF000000" &&
+              !_fontColorHex.contains(color[0])) _fontColorHex.add(color[0]);
 
-        color[1] ??= color[2];
-        color[2] ??= color[1];
+          color[1] ??= color[2];
+          color[2] ??= color[1];
 
-        if (color[0] != null && !_fontColorHex.contains(color[0]))
-          _fontColorHex.add(color[0]);
+          String c = '${color[1]}-${color[2]}';
 
-        if (!_patternFill.containsKey([color[1], color[2]])) {
-          int index = _patternFill.length;
-          _patternFill[[color[1], color[2]]] =
-              color[1] == null && color[2] == null ? 0 : index + 1;
-        }
-      });
-    });
+          if (color[1] != null &&
+              color[2] != null &&
+              !_patternFill.containsKey(c))
+            _patternFill[c] = [color[1], color[2]];
+        }));
+
+    _fontColorHex.removeWhere((value) => value == "FF000000");
 
     XmlElement fonts =
         _xmlFiles["xl/styles.xml"].findAllElements('fonts').first;
@@ -258,32 +258,29 @@ abstract class ExcelIt {
     ]));
 
     _patternFill.forEach((key, index) {
-      if (key[0] != null || key[1] != null)
-        fills.children.add(XmlElement(XmlName("fill"), [], [
-          XmlElement(XmlName("patternFill"), [
-            XmlAttribute(XmlName("patternType"), "solid")
-          ], [
-            XmlElement(XmlName("fgColor"),
-                [XmlAttribute(XmlName("rgb"), key[0] ?? key[1])], []),
-            XmlElement(XmlName("bgColor"),
-                [XmlAttribute(XmlName("rgb"), key[1] ?? key[0])], [])
-          ])
-        ]));
+      fills.children.add(XmlElement(XmlName("fill"), [], [
+        XmlElement(XmlName("patternFill"), [
+          XmlAttribute(XmlName("patternType"), "solid")
+        ], [
+          XmlElement(
+              XmlName("fgColor"), [XmlAttribute(XmlName("rgb"), index[0])], []),
+          XmlElement(
+              XmlName("bgColor"), [XmlAttribute(XmlName("rgb"), index[1])], [])
+        ])
+      ]));
     });
   }
 
   _setCellXfs() {
     _colorMap.forEach((key, innerMap) {
       innerMap.forEach((keyIn, color) {
-        if (!_cellXfs.containsKey(color.toString()) &&
-            (color[0] != null || color[1] != null || color[2] != null)) {
-          int index2 = _cellXfs.length;
+        if (!_cellXfs.containsKey(color.toString())) {
+          String c = '${color[1]}-${color[2]}';
           _cellXfs[color.toString()] = [
-            index2 + 1, // index of the xf body
-            color[0] == null
-                ? 0
-                : _fontColorHex.indexOf(color[0]) + 1, // index of fontColor
-            _patternFill[[color[1], color[2]]] // index of patternFill
+            _fontColorHex.indexOf(color[0].toString()) + 1,
+            _patternFill.containsKey(c)
+                ? _patternFill.keys.toList().indexOf(c) + 1
+                : 0
           ];
         }
       });
@@ -303,10 +300,10 @@ abstract class ExcelIt {
 
     _cellXfs.values.forEach((value) {
       celx.children.add(XmlElement(XmlName("xf"), [
-        XmlAttribute(XmlName("fillId"), "${value[2] == 0 ? 0 : value[2]}"),
-        XmlAttribute(XmlName("fontId"), "${value[1] == 0 ? 0 : value[1]}"),
-        XmlAttribute(XmlName("applyFill"), "${value[2] == 0 ? 0 : 1}"),
-        XmlAttribute(XmlName("applyFont"), "${value[1] == 0 ? 0 : 1}")
+        XmlAttribute(XmlName("fillId"), "${value[1]}"),
+        XmlAttribute(XmlName("fontId"), "${value[0]}"),
+        XmlAttribute(XmlName("applyFill"), "${value[1] == 0 ? 0 : 1}"),
+        XmlAttribute(XmlName("applyFont"), "${value[0] == 0 ? 0 : 1}")
       ], []));
     });
 
@@ -809,20 +806,24 @@ abstract class ExcelIt {
   XmlElement _createCell(
       String sheet, int columnIndex, int rowIndex, dynamic value) {
     if (!_sharedStrings.contains(value)) _sharedStrings.add(value);
+
     String rC = "${numericToLetters(columnIndex + 1)}${rowIndex + 1}";
+
     var attributes = <XmlAttribute>[
       XmlAttribute(XmlName('r'), rC),
       XmlAttribute(XmlName('t'), 's'),
     ];
+
     print("\n\ncolorMap:\n" + _colorMap.toString());
     print("\n\n_patternFill:\n" + _patternFill.toString());
     print("\n\n_cellXFS:\n" + _cellXfs.toString());
-    if (_colorMap.containsKey(sheet) &&
-        _colorMap[sheet].containsKey(rC) &&
-        _cellXfs.containsKey(_colorMap[sheet][rC])) {
+    if (_colorMap.containsKey(sheet) && _colorMap[sheet].containsKey(rC)) {
+      String color = _colorMap[sheet][rC].toString();
+
       attributes.insert(
         1,
-        XmlAttribute(XmlName('s'), '${_cellXfs[_colorMap[sheet][rC]][0]}'),
+        XmlAttribute(XmlName('s'),
+            '${_cellXfs.containsKey(color) ? _cellXfs.keys.toList().indexOf(color) + 1 : 0}'),
       );
     }
     var children = value == null

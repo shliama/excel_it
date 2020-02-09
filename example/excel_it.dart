@@ -47,7 +47,7 @@ void main(List<String> args) {
    */
 
   // if [Sheet2] does not exist then it will be automatically created.
-  var sheet = 'Sheet2';
+  var sheet = 'Sheet1';
 
   decoder
     ..updateCell(sheet, 0, 0, "Font RED",fontColorHex: "#1AFF1A")

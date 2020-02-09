@@ -74,7 +74,7 @@ class XlsxDecoder extends ExcelIt {
     _worksheetTargets = new Map<String, String>();
     _colorMap = new Map<String, Map<String, List<String>>>();
     _fontColorHex = new List<String>();
-    _patternFill = new Map<List<String>, int>();
+    _patternFill = new Map<String, List<String>>();
     _cellXfs = new Map<String, List<int>>();
     _tables = new Map<String, SpreadsheetTable>();
     _sharedStrings = new List<String>();
