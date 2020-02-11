@@ -233,11 +233,14 @@ abstract class ExcelIt {
         _xmlFiles["xl/styles.xml"].findAllElements('fonts').first;
     fonts.getAttributeNode("count").value = "${_fontColorHex.length + 1}";
 
-    fonts.children.clear();
-    fonts.children.add(XmlElement(XmlName("font"), [], [
-      XmlElement(
-          XmlName("color"), [XmlAttribute(XmlName("rgb"), "FF000000")], [])
-    ]));
+    fonts.children
+      ..clear()
+      ..addAll([
+        XmlElement(XmlName("font"), [], [
+          XmlElement(
+              XmlName("color"), [XmlAttribute(XmlName("rgb"), "FF000000")], [])
+        ])
+      ]);
 
     _fontColorHex.forEach((colorValue) =>
         fonts.children.add(XmlElement(XmlName("font"), [], [
@@ -251,11 +254,14 @@ abstract class ExcelIt {
         _xmlFiles["xl/styles.xml"].findAllElements('fills').first;
     fills.getAttributeNode("count").value = "${_patternFill.keys.length + 1}";
 
-    fills.children.clear();
-    fills.children.add(XmlElement(XmlName("fill"), [], [
-      XmlElement(XmlName("patternFill"),
-          [XmlAttribute(XmlName("patternType"), "none")], [])
-    ]));
+    fills.children
+      ..clear()
+      ..addAll([
+        XmlElement(XmlName("fill"), [], [
+          XmlElement(XmlName("patternFill"),
+              [XmlAttribute(XmlName("patternType"), "none")], [])
+        ])
+      ]);
 
     _patternFill.forEach((key, index) {
       fills.children.add(XmlElement(XmlName("fill"), [], [
@@ -290,13 +296,16 @@ abstract class ExcelIt {
         _xmlFiles["xl/styles.xml"].findAllElements('cellXfs').first;
     celx.getAttributeNode("count").value = "${_cellXfs.keys.length + 1}";
 
-    celx.children.clear();
-    celx.children.add(XmlElement(XmlName("xf"), [
-      XmlAttribute(XmlName("fillId"), "0"),
-      XmlAttribute(XmlName("fontId"), "0"),
-      XmlAttribute(XmlName("applyFill"), "1"),
-      XmlAttribute(XmlName("applyFont"), "1")
-    ], []));
+    celx.children
+      ..clear()
+      ..addAll([
+        XmlElement(XmlName("xf"), [
+          XmlAttribute(XmlName("fillId"), "0"),
+          XmlAttribute(XmlName("fontId"), "0"),
+          XmlAttribute(XmlName("applyFill"), "1"),
+          XmlAttribute(XmlName("applyFont"), "1")
+        ], [])
+      ]);
 
     _cellXfs.values.forEach((value) {
       celx.children.add(XmlElement(XmlName("xf"), [
@@ -306,31 +315,6 @@ abstract class ExcelIt {
         XmlAttribute(XmlName("applyFont"), "${value[0] == 0 ? 0 : 1}")
       ], []));
     });
-
-/*
-    _xmlFiles["xl/workbook.xml"].findAllElements('sheet').forEach((child) {
-      String sheetFile =
-              "xl/worksheets/sheet${int.parse(child.getAttributeNode("sheetId").value)}.xml",
-          sheetName = child.getAttributeNode("name").value;
-
-      if (_fontColorMap.containsKey(sheetName) &&
-          _xmlFiles.containsKey(sheetFile))
-        _xmlFiles[sheetFile].findAllElements("c").forEach((element) {
-          String column = element.getAttributeNode("r").value;
-          if (_fontColorMap[sheetName].containsKey(column) &&
-              _colorHex.contains(_fontColorMap[sheetName][column].toString())) {
-            if (element.getAttributeNode("s") == null) {
-              element.attributes.add(XmlAttribute(
-                  XmlName("s"),
-                  (_colorHex.indexOf(_fontColorMap[sheetName][column]) + 1)
-                      .toString()));
-            } else
-              element.getAttributeNode("s").value =
-                  (_colorHex.indexOf(_fontColorMap[sheetName][column]) + 1)
-                      .toString();
-          }
-        });
-    }); */
   }
 
   _setSharedStrings() {
@@ -377,29 +361,6 @@ abstract class ExcelIt {
     });
   }
 
-  _extractColors() {
-    /* _xmlFiles["xl/styles.xml"].findAllElements('font').forEach((child) {
-      if (child.getAttributeNode("rgb") != null)
-        _colorHex.add(child.getAttribute("rgb"));
-    });
-
-    _xmlFiles["xl/workbook.xml"].findAllElements('sheet').forEach((child) {
-      String sheetFile =
-              "xl/worksheets/sheet${int.parse(child.getAttributeNode("sheetId").value)}.xml",
-          sheetName = child.getAttributeNode("name").value;
-
-      if (_xmlFiles.containsKey(sheetFile))
-        _xmlFiles[sheetFile].findAllElements("c").forEach((element) {
-          String column = element.getAttributeNode("r").value,
-              color = element.getAttributeNode("s") ??
-                  element.getAttributeNode("s").value;
-
-          if (color != null && int.parse(color) < _colorHex.length)
-            _fontColorMap[sheetName] = new Map.from({"$column": color});
-        });
-    }); */
-  }
-
   /// Dump XML content (for debug purpose)
   String dumpXmlContent([String sheet]);
 
@@ -410,7 +371,7 @@ abstract class ExcelIt {
   }
 
   /// Insert column in [sheet] at position [columnIndex]
-  void _insertColumn(String sheet, int columnIndex) {
+  void insertColumn(String sheet, int columnIndex) {
     _checkSheetArguments(sheet);
     if (columnIndex < 0 /* || columnIndex > _tables[sheet]._maxCols  */)
       throw RangeError.range(columnIndex, 0, _tables[sheet]._maxCols);
@@ -448,7 +409,7 @@ abstract class ExcelIt {
   }
 
   /// Insert row in [sheet] at position [rowIndex]
-  void _insertRow(String sheet, int rowIndex) {
+  void insertRow(String sheet, int rowIndex) {
     _checkSheetArguments(sheet);
     if (rowIndex < 0)
       throw RangeError.range(rowIndex, 0, _tables[sheet]._maxRows);
@@ -489,9 +450,9 @@ abstract class ExcelIt {
     _checkSheetArguments(sheet);
 
     if (columnIndex >= _tables[sheet]._maxCols)
-      _insertColumn(sheet, columnIndex);
+      insertColumn(sheet, columnIndex);
 
-    if (rowIndex >= _tables[sheet]._maxRows) _insertRow(sheet, rowIndex);
+    if (rowIndex >= _tables[sheet]._maxRows) insertRow(sheet, rowIndex);
 
     _tables[sheet].rows[rowIndex][columnIndex] = value.toString();
     _sharedStrings.add(value.toString());
@@ -533,7 +494,6 @@ abstract class ExcelIt {
           copy = _archiveFiles[file.name];
         else {
           var content = (file.content as Uint8List).toList();
-          //var compress = file.compress;
           var compress = !_noCompression.contains(file.name);
           copy = ArchiveFile(file.name, content.length, content)
             ..compress = compress;
@@ -629,8 +589,7 @@ abstract class ExcelIt {
 
     if (node.children.isEmpty) return;
 
-    var value;
-    var type = node.getAttribute('t');
+    var value, type = node.getAttribute('t');
 
     switch (type) {
       // sharedString
@@ -732,9 +691,8 @@ abstract class ExcelIt {
     }
 
     // Create row if required
-    if (row == null || currentIndex != rowIndex) {
+    if (row == null || currentIndex != rowIndex)
       row = __insertRow(table, row, rowIndex);
-    }
 
     return row;
   }
@@ -753,27 +711,22 @@ abstract class ExcelIt {
       }
     }
 
-    if (cell == null || currentIndex != columnIndex) {
+    if (cell == null || currentIndex != columnIndex)
       cell = _insertCell(sheet, node, cell, columnIndex, rowIndex, value);
-    } else {
+    else
       cell = _replaceCell(sheet, node, cell, columnIndex, rowIndex, value);
-    }
 
     return cell;
   }
 
-  XmlElement _createRow(int rowIndex) {
-    var attributes = <XmlAttribute>[
-      XmlAttribute(XmlName('r'), (rowIndex + 1).toString()),
-    ];
-    return XmlElement(XmlName('row'), attributes, []);
-  }
+  XmlElement _createRow(int rowIndex) => XmlElement(XmlName('row'),
+      [XmlAttribute(XmlName('r'), (rowIndex + 1).toString())], []);
 
   XmlElement __insertRow(XmlElement table, XmlElement lastRow, int rowIndex) {
     var row = _createRow(rowIndex);
-    if (lastRow == null) {
+    if (lastRow == null)
       table.children.add(row);
-    } else {
+    else {
       var index = table.children.indexOf(lastRow);
       table.children.insert(index, row);
     }
@@ -783,9 +736,9 @@ abstract class ExcelIt {
   XmlElement _insertCell(String sheet, XmlElement row, XmlElement lastCell,
       int columnIndex, int rowIndex, dynamic value) {
     var cell = _createCell(sheet, columnIndex, rowIndex, value);
-    if (lastCell == null) {
+    if (lastCell == null)
       row.children.add(cell);
-    } else {
+    else {
       var index = row.children.indexOf(lastCell);
       row.children.insert(index, cell);
     }
@@ -817,6 +770,7 @@ abstract class ExcelIt {
     print("\n\ncolorMap:\n" + _colorMap.toString());
     print("\n\n_patternFill:\n" + _patternFill.toString());
     print("\n\n_cellXFS:\n" + _cellXfs.toString());
+
     if (_colorMap.containsKey(sheet) && _colorMap[sheet].containsKey(rC)) {
       String color = _colorMap[sheet][rC].toString();
 

@@ -1,8 +1,6 @@
 name: excel_it
 description: A library for creating, editing and updating excel sheets.
 version: 1.0.0
-author:
-- Kawaljeet Singh <kawal74153@gmail.com>
 homepage: https://github.com/kawal7415/excel_it
 
 environment:

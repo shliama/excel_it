@@ -85,7 +85,6 @@ class XlsxDecoder extends ExcelIt {
     _parseStyles(_stylesTarget);
     _parseSharedStrings();
     _parseContent();
-    _extractColors();
   }
 
   String dumpXmlContent([String sheet]) {
