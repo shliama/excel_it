@@ -73,7 +73,6 @@ On-going implementation for future:
 - annotations
 - spanned rows (Comming Soon in future updates)
 - spanned columns (Comming Soon in future updates)
-- font colour (Comming Soon in future updates)
 
 ## Important:
 For XLSX format, this implementation only supports native Excel format for date, time and boolean type conversion.
