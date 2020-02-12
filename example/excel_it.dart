@@ -5,10 +5,6 @@ import 'package:excel_it/excel_it.dart';
 void main(List<String> args) {
   var decoder = ExcelIt.createExcel();
 
-  //var file = "Path_to_pre_existing_Excel_File/NewExcel.xlsx";
-  //var bytes = File(file).readAsBytesSync();
-  //var decoder = ExcelIt.decodeBytes(bytes, update: true);
-
   /**
    * Create new Excel Sheet
    * var decoder = ExcelIt.createExcel();
