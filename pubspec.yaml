@@ -1,6 +1,6 @@
 name: excel_it
-description: A library for creating, editing and updating excel sheets.
-version: 1.0.0
+description: A flutter and dart library for creating, editing and updating excel sheets both on client and server side compatible.
+version: 1.0.1
 homepage: https://github.com/kawal7415/excel_it
 
 environment:
