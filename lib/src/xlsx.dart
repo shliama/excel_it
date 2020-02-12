@@ -31,14 +31,6 @@ int _letterOnly(int rune) {
   return 0;
 }
 
-// Not used
-//int _intOnly(int rune) {
-//  if (rune >= 48 && rune < 58) {
-//    return rune;
-//  }
-//  return 0;
-//}
-
 String _twoDigits(int n) {
   if (n > 9) return "$n";
   return "0$n";
@@ -123,7 +115,7 @@ class XlsxDecoder extends ExcelIt {
   _addColor(String sheet, String color, String rowCol, int index) {
     if (color != null && color.length != 7)
       throw ArgumentError(
-          "\nIn-appropriate Color provided. Use colorHex as example of: #FF0000\n");
+          "InAppropriate Color provided. Use colorHex as example of: #FF0000");
 
     String hex = color.replaceAll(new RegExp(r'#'), 'FF');
 
@@ -146,9 +138,12 @@ class XlsxDecoder extends ExcelIt {
 
   _putContentXml() {
     var file = _archive.findFile("[Content_Types].xml");
-    file.decompress();
-    if (_xmlFiles != null)
+
+    if (_xmlFiles != null) {
+      if (file == null) _damagedExcel();
+      file.decompress();
       _xmlFiles["[Content_Types].xml"] = parse(utf8.decode(file.content));
+    }
   }
 
   _parseRelations() {
@@ -172,19 +167,25 @@ class XlsxDecoder extends ExcelIt {
         }
         if (!_rId.contains(id)) _rId.add(id);
       });
-    }
+    } else
+      _damagedExcel();
   }
 
   _parseSharedStrings() {
     var sharedStrings = _archive.findFile('xl/$_sharedStringsTarget');
-    if (sharedStrings != null) {
-      sharedStrings.decompress();
-      var document = parse(utf8.decode(sharedStrings.content));
-      if (_xmlFiles != null) _xmlFiles["xl/$_sharedStringsTarget"] = document;
-      document.findAllElements('si').forEach((node) {
-        _parseSharedString(node);
-      });
+    if (sharedStrings == null) {
+      var content = utf8.encode(
+          "<sst xmlns=\"http://schemas.openxmlformats.org/spreadsheetml/2006/main\" count=\"0\" uniqueCount=\"0\">");
+      _archive.addFile(
+          ArchiveFile('xl/$_sharedStringsTarget', content.length, content));
+      sharedStrings = _archive.findFile('xl/$_sharedStringsTarget');
     }
+    sharedStrings.decompress();
+    var document = parse(utf8.decode(sharedStrings.content));
+    if (_xmlFiles != null) _xmlFiles["xl/$_sharedStringsTarget"] = document;
+    document.findAllElements('si').forEach((node) {
+      _parseSharedString(node);
+    });
   }
 
   _parseSharedString(XmlElement node) {
@@ -195,92 +196,10 @@ class XlsxDecoder extends ExcelIt {
 
   _parseContent() {
     var workbook = _archive.findFile('xl/workbook.xml');
+    if (workbook == null) _damagedExcel();
     workbook.decompress();
     var document = parse(utf8.decode(workbook.content));
     if (_xmlFiles != null) _xmlFiles["xl/workbook.xml"] = document;
     document.findAllElements('sheet').forEach((node) => _parseTable(node));
   }
 }
-
-/* 
-  void _insertColumn(String sheet, int columnIndex) {
-    super._insertColumn(sheet, columnIndex);
-
-    for (var row in _findRows(_sheets[sheet])) {
-      XmlElement cell;
-      var cells = _findCells(row);
-
-      var currentIndex = 0; // cells could be empty
-      for (var currentCell in cells) {
-        currentIndex = _getCellNumber(currentCell) - 1;
-        if (currentIndex >= columnIndex) {
-          cell = currentCell;
-          break;
-        }
-      }
-
-      if (cell != null) {
-        cells
-            .skipWhile((c) => c != cell)
-            .forEach((c) => _setCellColNumber(c, _getCellNumber(c) + 1));
-      }
-      // Nothing to do if cell == null
-    }
-  } */
-
-/* void removeColumn(String sheet, int columnIndex) {
-    super.removeColumn(sheet, columnIndex);
-
-    for (var row in _findRows(_sheets[sheet])) {
-      XmlElement cell;
-      var cells = _findCells(row);
-
-      var currentIndex = 0; // cells could be empty
-      for (var currentCell in cells) {
-        currentIndex = _getCellNumber(currentCell) - 1;
-        if (currentIndex >= columnIndex) {
-          cell = currentCell;
-          break;
-        }
-      }
-
-      if (cell != null) {
-        cells
-            .skipWhile((c) => c != cell)
-            .forEach((c) => _setCellColNumber(c, _getCellNumber(c) - 1));
-        cell.parent.children.remove(cell);
-      }
-    }
-  } */
-/* 
-  void _insertRow(String sheet, int rowIndex) {
-    super._insertRow(sheet, rowIndex);
-
-    var parent = _sheets[sheet];
-    if (rowIndex < _tables[sheet]._maxRows - 1) {
-      var foundRow = _findRowByIndex(_sheets[sheet], rowIndex);
-      __insertRow(parent, foundRow, rowIndex);
-      parent.children.skipWhile((row) => row != foundRow).forEach((row) {
-        var rIndex = _getRowNumber(row) + 1;
-        _setRowNumber(row, rIndex);
-        _findCells(row).forEach((cell) {
-          _setCellRowNumber(cell, rIndex);
-        });
-      });
-    } else {
-      __insertRow(parent, null, rowIndex);
-    }
-  }
- */
-/* void removeRow(String sheet, int rowIndex) {
-    super.removeRow(sheet, rowIndex);
-
-    var parent = _sheets[sheet];
-    var foundRow = _findRowByIndex(parent, rowIndex);
-    parent.children.skipWhile((row) => row != foundRow).forEach((row) {
-      var rIndex = _getRowNumber(row) - 1;
-      _setRowNumber(row, rIndex);
-      _findCells(row).forEach((cell) => _setCellRowNumber(cell, rIndex));
-    });
-    parent.children.remove(foundRow);
-  } */

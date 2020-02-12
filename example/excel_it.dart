@@ -47,13 +47,14 @@ void main(List<String> args) {
    */
 
   // if [Sheet2] does not exist then it will be automatically created.
-  var sheet = 'Sheet1';
+  var sheet = 'Sheet2';
 
   decoder
-    ..updateCell(sheet, 0, 0, "Font RED",fontColorHex: "#1AFF1A")
+    ..updateCell(sheet, 0, 0, "Font RED", fontColorHex: "#1AFF1A")
     ..updateCell(sheet, 2, 0, "Font BLUE")
-    ..updateCell(sheet, 0, 1, "Font GREEN",foregroundColorHex: "#1AFF1A")
-    ..updateCell(sheet, 4, 4, "Font Orange",backgroundColorHex: "#1AFF1A");
+    ..updateCell(sheet, 0, 1, "Font GREEN", foregroundColorHex: "#1AFF1A")
+    ..updateCell(sheet, 4, 4, "Font Orange",
+        foregroundColorHex: "#2BEC2A", backgroundColorHex: "#1AFF1A");
 
   File(join("/Users/kawal/Desktop/excel.xlsx"))
     ..createSync(recursive: true)
@@ -66,9 +67,8 @@ void main(List<String> args) {
     print("Max Columns: " + decoder.tables[table].maxCols.toString());
     print("Max Rows   : " + decoder.tables[table].maxRows.toString());
     print("Data in Table:\n");
-    for (var row in decoder.tables[table].rows)
-      print("$row");
-    
+    for (var row in decoder.tables[table].rows) print("$row");
+
     print("\n******************************\n");
   }
 }

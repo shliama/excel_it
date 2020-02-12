@@ -17,5 +17,3 @@ dev_dependencies:
   test: ^1.2.0
   flutter_test:
     sdk: flutter
-
-flutter:
