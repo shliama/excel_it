@@ -58,6 +58,7 @@ class XlsxDecoder extends ExcelIt {
   XlsxDecoder(Archive archive, {bool update = false}) {
     this._archive = archive;
     this._update = update;
+    _colorChanges = false;
     if (_update) {
       _archiveFiles = <String, ArchiveFile>{};
       _sheets = <String, XmlNode>{};
@@ -66,7 +67,7 @@ class XlsxDecoder extends ExcelIt {
     _worksheetTargets = new Map<String, String>();
     _colorMap = new Map<String, Map<String, List<String>>>();
     _fontColorHex = new List<String>();
-    _patternFill = new Map<String, List<String>>();
+    _patternFill = new List<String>();
     _cellXfs = new Map<String, List<int>>();
     _tables = new Map<String, SpreadsheetTable>();
     _sharedStrings = new List<String>();
@@ -83,8 +84,7 @@ class XlsxDecoder extends ExcelIt {
     if (sheet == null) {
       var buffer = StringBuffer();
       _sheets.forEach((name, document) {
-        buffer.writeln(name);
-        buffer.writeln(document.toXmlString(pretty: true));
+        buffer..writeln(name)..writeln(document.toXmlString(pretty: true));
       });
       return buffer.toString();
     } else
@@ -92,9 +92,7 @@ class XlsxDecoder extends ExcelIt {
   }
 
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {String fontColorHex,
-      String foregroundColorHex,
-      String backgroundColorHex}) {
+      {String fontColorHex, String backgroundColorHex}) {
     super.updateCell(sheet, columnIndex, rowIndex, value);
 
     String rC = '${numericToLetters(columnIndex + 1)}${rowIndex + 1}';
@@ -103,12 +101,8 @@ class XlsxDecoder extends ExcelIt {
       _addColor(sheet, fontColorHex, rC, 0);
     }
 
-    if (foregroundColorHex != null) {
-      _addColor(sheet, foregroundColorHex, rC, 1);
-    }
-
     if (backgroundColorHex != null) {
-      _addColor(sheet, backgroundColorHex, rC, 2);
+      _addColor(sheet, backgroundColorHex, rC, 1);
     }
   }
 
@@ -123,7 +117,7 @@ class XlsxDecoder extends ExcelIt {
       if (_colorMap[sheet].containsKey(rowCol))
         _colorMap[sheet][rowCol][index] = hex;
       else {
-        List l = new List<String>(3);
+        List l = new List<String>(2);
         l[index] = hex;
         Map temp = new Map<String, List<String>>.from(_colorMap[sheet]);
         temp[rowCol] = l;
@@ -134,6 +128,7 @@ class XlsxDecoder extends ExcelIt {
       l[index] = hex;
       _colorMap[sheet] = new Map<String, List<String>>.from({rowCol: l});
     }
+    _colorChanges = true;
   }
 
   _putContentXml() {

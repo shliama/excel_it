@@ -60,16 +60,15 @@ String numericToLetters(int number) {
 
 /// Decode a excel file.
 abstract class ExcelIt {
-  bool _update;
+  bool _update, _colorChanges;
   Archive _archive;
   Map<String, XmlNode> _sheets;
   Map<String, XmlDocument> _xmlFiles;
   Map<String, ArchiveFile> _archiveFiles;
   Map<String, String> _worksheetTargets;
   Map<String, Map<String, List<String>>> _colorMap;
-  Map<String, List<String>> _patternFill;
   Map<String, List<int>> _cellXfs;
-  List<String> _sharedStrings, _rId, _fontColorHex;
+  List<String> _sharedStrings, _rId, _fontColorHex, _patternFill;
   List<int> _numFormats;
 
   Map<String, SpreadsheetTable> _tables;
@@ -208,27 +207,32 @@ abstract class ExcelIt {
   }
 
   /// Sets/Updates the Font Color in [xl/styles.xml] from the Cells of the sheets
-  _setFontColors() {
-    _colorMap.forEach((key, innerMap) => innerMap.forEach((keyIn, color) {
+  _setFontAndPatternFillColors() {
+    _colorMap.values.forEach((innerMap) => innerMap.values.forEach((color) {
           if (color[0] != null &&
               color[0] != "FF000000" &&
               !_fontColorHex.contains(color[0])) _fontColorHex.add(color[0]);
 
-          color[1] ??= color[2];
-          color[2] ??= color[1];
+          if (color[1] != null && !_patternFill.contains(color[1]))
+            _patternFill.add(color[1]);
 
-          if (color[1] != null && color[2] != null) {
-            String c = '${color[1]}-${color[2]}';
-            if (!_patternFill.containsKey(c))
-              _patternFill[c] = [color[1], color[2]];
-          }
+          if (!_cellXfs.containsKey(color.toString()))
+            _cellXfs[color.toString()] = [
+              _fontColorHex.indexOf(color[0].toString()) + 1,
+              _patternFill.indexOf(color[1]) + 1
+            ];
         }));
 
     _fontColorHex.removeWhere((value) => value == "FF000000");
 
     XmlElement fonts =
         _xmlFiles["xl/styles.xml"].findAllElements('fonts').first;
-    fonts.getAttributeNode("count").value = "${_fontColorHex.length + 1}";
+
+    if (fonts.getAttributeNode("count") != null)
+      fonts.getAttributeNode("count").value = "${_fontColorHex.length + 1}";
+    else
+      fonts.attributes
+          .add(XmlAttribute(XmlName('count'), '${_fontColorHex.length + 1}'));
 
     fonts.children
       ..clear()
@@ -246,14 +250,14 @@ abstract class ExcelIt {
         ])));
   }
 
-  _setPatternFillColor() {
+  _setPatternFillSheetColor() {
     XmlElement fills =
         _xmlFiles["xl/styles.xml"].findAllElements('fills').first;
     if (fills.getAttributeNode("count") != null)
-      fills.getAttributeNode("count").value = "${_patternFill.keys.length + 1}";
+      fills.getAttributeNode("count").value = "${_patternFill.length + 1}";
     else
-      fills.attributes.add(
-          XmlAttribute(XmlName('count'), '${_patternFill.keys.length + 1}'));
+      fills.attributes
+          .add(XmlAttribute(XmlName('count'), '${_patternFill.length + 1}'));
 
     fills.children
       ..clear()
@@ -264,34 +268,28 @@ abstract class ExcelIt {
         ])
       ]);
 
-    _patternFill.forEach((key, index) {
+    _patternFill.forEach((color) {
       fills.children.add(XmlElement(XmlName("fill"), [], [
         XmlElement(XmlName("patternFill"), [
           XmlAttribute(XmlName("patternType"), "solid")
         ], [
           XmlElement(
-              XmlName("fgColor"), [XmlAttribute(XmlName("rgb"), index[0])], []),
+              XmlName("fgColor"), [XmlAttribute(XmlName("rgb"), color)], []),
           XmlElement(
-              XmlName("bgColor"), [XmlAttribute(XmlName("rgb"), index[1])], [])
+              XmlName("bgColor"), [XmlAttribute(XmlName("rgb"), color)], [])
         ])
       ]));
     });
   }
 
   _setCellXfs() {
-    _colorMap.forEach((key, innerMap) {
-      innerMap.forEach((keyIn, color) {
-        if (!_cellXfs.containsKey(color.toString())) {
-          String c = '${color[1]}-${color[2]}';
-          _cellXfs[color.toString()] = [
-            _fontColorHex.indexOf(color[0].toString()) + 1,
-            _patternFill.containsKey(c)
-                ? _patternFill.keys.toList().indexOf(c) + 1
-                : 0
-          ];
-        }
-      });
-    });
+    /* _colorMap.values.forEach((innerMap) => innerMap.values.forEach((color) {
+          if (!_cellXfs.containsKey(color.toString()))
+            _cellXfs[color.toString()] = [
+              _fontColorHex.indexOf(color[0].toString()) + 1,
+              _patternFill.indexOf(color[1]) + 1
+            ];
+        })); */
 
     XmlElement celx =
         _xmlFiles["xl/styles.xml"].findAllElements('cellXfs').first;
@@ -451,9 +449,7 @@ abstract class ExcelIt {
   /// Update the contents from [sheet] of the cell [columnIndex]x[rowIndex] with indexes start from 0
   /// [fontColorHex] or [backgroundColorHex] as example [#FF0000]
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {String fontColorHex,
-      String foregroundColorHex,
-      String backgroundColorHex}) {
+      {String fontColorHex, String backgroundColorHex}) {
     _checkSheetArguments(sheet);
 
     if (columnIndex >= _tables[sheet]._maxCols)
@@ -466,14 +462,16 @@ abstract class ExcelIt {
   }
 
   /// Encode bytes after update
-  List<int> encode() {
+  Future<List> encode() async {
     if (!_update)
       throw ArgumentError("'update' should be set to 'true' on constructor");
 
-    _setFontColors();
-    _setPatternFillColor();
+    if (_colorChanges) {
+      _setFontAndPatternFillColors();
+      _setPatternFillSheetColor();
+      _setCellXfs();
+    }
     _setSharedStrings();
-    _setCellXfs();
     _updateSheetElements();
 
     for (var xmlFile in _xmlFiles.keys) {
@@ -488,7 +486,7 @@ abstract class ExcelIt {
   String dataUrl() {
     var buffer = StringBuffer();
     buffer.write("data:$mediaType;base64,");
-    buffer.write(base64Encode(encode()));
+    encode().then((onValue) => buffer.write(base64Encode(onValue)));
     return buffer.toString();
   }
 
@@ -774,7 +772,9 @@ abstract class ExcelIt {
       XmlAttribute(XmlName('t'), 's'),
     ];
 
-    if (_colorMap.containsKey(sheet) && _colorMap[sheet].containsKey(rC)) {
+    if (_colorChanges &&
+        _colorMap.containsKey(sheet) &&
+        _colorMap[sheet].containsKey(rC)) {
       String color = _colorMap[sheet][rC].toString();
 
       attributes.insert(
