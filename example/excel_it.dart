@@ -18,11 +18,15 @@ void main(List<String> args) {
   var sheet = 'Sheet2';
 
   decoder
-    ..updateCell(sheet, 0, 0, "It is Font RED", fontColorHex: "#1AFF1A")
-    ..updateCell(sheet, 2, 0, "It is Font BLUE")
-    ..updateCell(sheet, 0, 1, "It is Font GREEN", backgroundColorHex: "#1AFF1A")
-    ..updateCell(sheet, 4, 4, "It is Font Orange",
-        backgroundColorHex: "#8DFE9C");
+    ..updateCell(sheet, 0, 0, "It is Verically top aligned",
+        fontColorHex: "#1AFF1A", verticalAlign: VerticalAlign.Top)
+    ..updateCell(
+        sheet, 2, 0, "It is a Wrapped Text jdfhgdfjhgdkfjhdkfgjhfdgkjh",
+        wrap: TextWrapping.WrapText)
+    ..updateCell(sheet, 0, 1, "It is Clip dfhgldhlfdflh  fdjhdfkjgdfkjgh",
+        wrap: TextWrapping.Clip, backgroundColorHex: "#1AFF1A")
+    ..updateCell(sheet, 4, 4, "It is Aligned Right ldfhgldfhgh",
+        horizontalAlign: HorizontalAlign.Right, backgroundColorHex: "#112E9C");
 
   decoder.encode().then((onValue) {
     File(join("/Users/kawal/Desktop/excel.xlsx"))

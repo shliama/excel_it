@@ -68,7 +68,7 @@ class XlsxDecoder extends ExcelIt {
     _colorMap = new Map<String, Map<String, List<String>>>();
     _fontColorHex = new List<String>();
     _patternFill = new List<String>();
-    _cellXfs = new Map<String, List<int>>();
+    _cellXfs = new Map<String, List<String>>();
     _tables = new Map<String, SpreadsheetTable>();
     _sharedStrings = new List<String>();
     _rId = new List<String>();
@@ -92,43 +92,59 @@ class XlsxDecoder extends ExcelIt {
   }
 
   void updateCell(String sheet, int columnIndex, int rowIndex, dynamic value,
-      {String fontColorHex, String backgroundColorHex}) {
+      {String fontColorHex,
+      String backgroundColorHex,
+      TextWrapping wrap,
+      VerticalAlign verticalAlign,
+      HorizontalAlign horizontalAlign}) {
     super.updateCell(sheet, columnIndex, rowIndex, value);
 
     String rC = '${numericToLetters(columnIndex + 1)}${rowIndex + 1}';
 
-    if (fontColorHex != null) {
-      _addColor(sheet, fontColorHex, rC, 0);
-    }
+    if (fontColorHex != null) _addColor(sheet, rC, 0, fontColorHex);
 
-    if (backgroundColorHex != null) {
-      _addColor(sheet, backgroundColorHex, rC, 1);
-    }
+    if (backgroundColorHex != null) _addColor(sheet, rC, 1, backgroundColorHex);
+
+    if (wrap != null)
+      _addColor(sheet, rC, 2, wrap == TextWrapping.Clip ? "0" : "1");
+
+    if (verticalAlign != null && verticalAlign != VerticalAlign.Bottom)
+      _addColor(
+          sheet, rC, 3, verticalAlign == VerticalAlign.Top ? "top" : "middle");
+
+    if (horizontalAlign != null && horizontalAlign != HorizontalAlign.Left)
+      _addColor(sheet, rC, 4,
+          horizontalAlign == HorizontalAlign.Center ? "center" : "right");
   }
 
-  _addColor(String sheet, String color, String rowCol, int index) {
-    if (color != null && color.length != 7)
-      throw ArgumentError(
-          "InAppropriate Color provided. Use colorHex as example of: #FF0000");
+  _addColor(String sheet, String rowCol, int index, String value) {
+    dynamic hex;
+    if ((index == 0 || index == 1)) {
+      if (value.length != 7)
+        throw ArgumentError(
+            "InAppropriate Color provided. Use colorHex as example of: #FF0000");
 
-    String hex = color.replaceAll(new RegExp(r'#'), 'FF');
+      hex = value.replaceAll(new RegExp(r'#'), 'FF').toString();
+    } else
+      hex = value.toString();
 
     if (_colorMap.containsKey(sheet)) {
       if (_colorMap[sheet].containsKey(rowCol))
         _colorMap[sheet][rowCol][index] = hex;
       else {
-        List l = new List<String>(2);
+        List l = new List<String>(5);
         l[index] = hex;
         Map temp = new Map<String, List<String>>.from(_colorMap[sheet]);
         temp[rowCol] = l;
         _colorMap[sheet] = new Map<String, List<String>>.from(temp);
       }
     } else {
-      List l = new List<String>(3);
+      List l = new List<String>(5);
       l[index] = hex;
       _colorMap[sheet] = new Map<String, List<String>>.from({rowCol: l});
     }
-    _colorChanges = true;
+
+    if (!_colorChanges) _colorChanges = true;
   }
 
   _putContentXml() {
